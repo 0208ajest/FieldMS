@@ -9,6 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { Search, Plus, Eye, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { User } from '@/types';
 import { users, companies, departments } from '@/components/data/userData';
@@ -21,9 +23,23 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isViewUserOpen, setIsViewUserOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [usersList, setUsersList] = useState(users);
+
+  const [newUser, setNewUser] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    systemRole: 'engineer',
+    companyId: 1,
+    departmentId: 1,
+    isActive: true
+  });
 
   // フィルタリングされたユーザーリスト
-  const filteredUsers = users.filter(user => {
+  const filteredUsers = usersList.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -32,6 +48,53 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
     
     return matchesSearch && matchesRole && matchesStatus;
   });
+
+  // ユーザー追加
+  const handleAddUser = () => {
+    const user: User = {
+      id: usersList.length + 1,
+      name: newUser.name,
+      email: newUser.email,
+      phone: newUser.phone,
+      systemRole: newUser.systemRole as 'system_admin' | 'admin' | 'dispatcher' | 'engineer_manager' | 'engineer',
+      companyId: newUser.companyId,
+      departmentId: newUser.departmentId,
+      isActive: newUser.isActive,
+      avatar: '',
+      createdAt: new Date(),
+      lastLoginAt: null
+    };
+
+    setUsersList([...usersList, user]);
+    setIsAddUserOpen(false);
+    setNewUser({
+      name: '',
+      email: '',
+      phone: '',
+      systemRole: 'engineer',
+      companyId: 1,
+      departmentId: 1,
+      isActive: true
+    });
+  };
+
+  // ユーザー削除
+  const handleDeleteUser = (userId: number) => {
+    setUsersList(usersList.filter(u => u.id !== userId));
+  };
+
+  // ユーザー詳細表示
+  const handleViewUser = (user: User) => {
+    setSelectedUser(user);
+    setIsViewUserOpen(true);
+  };
+
+  // ユーザー編集
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    // 編集機能は今後実装予定
+    console.log('ユーザー編集:', user);
+  };
 
   const getRoleBadge = (role: string) => {
     const roleMap = {
@@ -54,17 +117,6 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
     return departments.find(d => d.id === departmentId)?.name || '不明';
   };
 
-  const openUserDetails = (user: User) => {
-    console.log('ユーザー詳細:', user);
-  };
-
-  const editUser = (user: User) => {
-    console.log('ユーザー編集:', user);
-  };
-
-  const deleteUser = (user: User) => {
-    console.log('ユーザー削除:', user);
-  };
 
   return (
     <div className="space-y-6">
@@ -75,10 +127,108 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
           <p className="text-muted-foreground">ユーザーの登録・編集・権限管理</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            ユーザー追加
-          </Button>
+          <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                ユーザー追加
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>ユーザー追加</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">名前</Label>
+                    <Input
+                      id="name"
+                      value={newUser.name}
+                      onChange={(e) => setNewUser({...newUser, name: e.target.value})}
+                      placeholder="ユーザー名"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">メール</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={newUser.email}
+                      onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                      placeholder="email@example.com"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="phone">電話番号</Label>
+                    <Input
+                      id="phone"
+                      value={newUser.phone}
+                      onChange={(e) => setNewUser({...newUser, phone: e.target.value})}
+                      placeholder="090-1234-5678"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="role">権限</Label>
+                    <Select value={newUser.systemRole} onValueChange={(value) => setNewUser({...newUser, systemRole: value})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="engineer">エンジニア</SelectItem>
+                        <SelectItem value="engineer_manager">エンジニア管理</SelectItem>
+                        <SelectItem value="dispatcher">ディスパッチャー</SelectItem>
+                        <SelectItem value="admin">管理者</SelectItem>
+                        <SelectItem value="system_admin">システム管理者</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="company">会社</Label>
+                    <Select value={newUser.companyId.toString()} onValueChange={(value) => setNewUser({...newUser, companyId: parseInt(value)})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {companies.map(company => (
+                          <SelectItem key={company.id} value={company.id.toString()}>
+                            {company.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="department">部門</Label>
+                    <Select value={newUser.departmentId.toString()} onValueChange={(value) => setNewUser({...newUser, departmentId: parseInt(value)})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map(department => (
+                          <SelectItem key={department.id} value={department.id.toString()}>
+                            {department.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsAddUserOpen(false)}>
+                  キャンセル
+                </Button>
+                <Button onClick={handleAddUser}>
+                  追加
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -186,17 +336,17 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => openUserDetails(user)}>
+                    <Button variant="ghost" size="sm" onClick={() => handleViewUser(user)}>
                       <Eye className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => editUser(user)}>
+                    <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)}>
                       <Edit className="w-4 h-4" />
                     </Button>
                     {user.id !== currentUser.id && (
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        onClick={() => deleteUser(user)}
+                        onClick={() => handleDeleteUser(user.id)}
                         className="text-red-600 hover:text-red-700"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -278,6 +428,65 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
           </div>
         </Card>
       </div>
+
+      {/* ユーザー詳細表示ダイアログ */}
+      <Dialog open={isViewUserOpen} onOpenChange={setIsViewUserOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>ユーザー詳細</DialogTitle>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="w-16 h-16">
+                  <AvatarImage src={selectedUser.avatar || undefined} />
+                  <AvatarFallback className="bg-primary text-primary-foreground text-lg">
+                    {selectedUser.name[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedUser.name}</h3>
+                  <p className="text-sm text-muted-foreground">ID: {selectedUser.id}</p>
+                  {getRoleBadge(selectedUser.systemRole)}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">メール</Label>
+                  <p className="text-sm">{selectedUser.email}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">電話</Label>
+                  <p className="text-sm">{selectedUser.phone || '未設定'}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">会社</Label>
+                  <p className="text-sm">{getCompanyName(selectedUser.companyId)}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">部門</Label>
+                  <p className="text-sm">{getDepartmentName(selectedUser.departmentId)}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">ステータス</Label>
+                  <Badge className={selectedUser.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}>
+                    {selectedUser.isActive ? '有効' : '無効'}
+                  </Badge>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">最終ログイン</Label>
+                  <p className="text-sm">{selectedUser.lastLoginAt ? new Date(selectedUser.lastLoginAt).toLocaleString('ja-JP') : '未ログイン'}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setIsViewUserOpen(false)}>
+              閉じる
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

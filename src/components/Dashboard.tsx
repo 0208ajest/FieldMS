@@ -1,11 +1,16 @@
 'use client';
 
+import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Calendar, Clipboard, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Users, Calendar, Clipboard, CheckCircle, AlertTriangle, Plus } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 interface DashboardProps {
@@ -13,6 +18,17 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onNavigateToDispatch }: DashboardProps) {
+  const [isNewWorkOrderOpen, setIsNewWorkOrderOpen] = useState(false);
+  const [isAllActivitiesOpen, setIsAllActivitiesOpen] = useState(false);
+  const [newWorkOrder, setNewWorkOrder] = useState({
+    title: '',
+    description: '',
+    priority: 'medium',
+    assignedEngineer: '',
+    dueDate: '',
+    estimatedHours: ''
+  });
+
   // モックデータ
   const scheduleData = [
     { date: '1/1', scheduled: 12, completed: 10 },
@@ -32,6 +48,29 @@ export default function Dashboard({ onNavigateToDispatch }: DashboardProps) {
     { name: '高橋', utilization: 95 },
   ];
 
+  const allActivities = [
+    { id: 1, type: 'completed', title: '作業完了', description: '田中エンジニア - サーバー保守', time: '5分前', icon: CheckCircle, color: 'green' },
+    { id: 2, type: 'schedule', title: '新規スケジュール', description: '山田エンジニア - 15:00-17:00', time: '15分前', icon: Calendar, color: 'blue' },
+    { id: 3, type: 'urgent', title: '緊急作業指示', description: 'ネットワーク障害対応', time: '30分前', icon: AlertTriangle, color: 'orange' },
+    { id: 4, type: 'assigned', title: '作業割り当て', description: '佐藤エンジニア - システム更新', time: '1時間前', icon: Clipboard, color: 'blue' },
+    { id: 5, type: 'completed', title: '作業完了', description: '鈴木エンジニア - データベース最適化', time: '2時間前', icon: CheckCircle, color: 'green' },
+    { id: 6, type: 'schedule', title: 'スケジュール変更', description: '高橋エンジニア - 時間変更', time: '3時間前', icon: Calendar, color: 'blue' },
+  ];
+
+  const handleNewWorkOrderSubmit = () => {
+    // 新規作業指示の作成処理
+    console.log('新規作業指示:', newWorkOrder);
+    setIsNewWorkOrderOpen(false);
+    setNewWorkOrder({
+      title: '',
+      description: '',
+      priority: 'medium',
+      assignedEngineer: '',
+      dueDate: '',
+      estimatedHours: ''
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* ページヘッダー */}
@@ -41,8 +80,98 @@ export default function Dashboard({ onNavigateToDispatch }: DashboardProps) {
           <p className="text-muted-foreground">システム概要とクイックアクション</p>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="outline">レポート出力</Button>
-          <Button size="sm">新規作業指示</Button>
+          <Dialog open={isNewWorkOrderOpen} onOpenChange={setIsNewWorkOrderOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                新規作業指示
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>新規作業指示</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="title">タイトル</Label>
+                  <Input
+                    id="title"
+                    value={newWorkOrder.title}
+                    onChange={(e) => setNewWorkOrder({...newWorkOrder, title: e.target.value})}
+                    placeholder="作業指示のタイトル"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="description">詳細</Label>
+                  <Textarea
+                    id="description"
+                    value={newWorkOrder.description}
+                    onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})}
+                    placeholder="作業内容の詳細"
+                    rows={3}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="priority">優先度</Label>
+                    <Select value={newWorkOrder.priority} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, priority: value})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">低</SelectItem>
+                        <SelectItem value="medium">中</SelectItem>
+                        <SelectItem value="high">高</SelectItem>
+                        <SelectItem value="urgent">緊急</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="estimatedHours">予想時間</Label>
+                    <Input
+                      id="estimatedHours"
+                      type="number"
+                      value={newWorkOrder.estimatedHours}
+                      onChange={(e) => setNewWorkOrder({...newWorkOrder, estimatedHours: e.target.value})}
+                      placeholder="時間"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="assignedEngineer">担当エンジニア</Label>
+                  <Select value={newWorkOrder.assignedEngineer} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, assignedEngineer: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="エンジニアを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tanaka">田中</SelectItem>
+                      <SelectItem value="yamada">山田</SelectItem>
+                      <SelectItem value="sato">佐藤</SelectItem>
+                      <SelectItem value="suzuki">鈴木</SelectItem>
+                      <SelectItem value="takahashi">高橋</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="dueDate">期限</Label>
+                  <Input
+                    id="dueDate"
+                    type="date"
+                    value={newWorkOrder.dueDate}
+                    onChange={(e) => setNewWorkOrder({...newWorkOrder, dueDate: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsNewWorkOrderOpen(false)}>
+                  キャンセル
+                </Button>
+                <Button onClick={handleNewWorkOrderSubmit}>
+                  作成
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -211,9 +340,40 @@ export default function Dashboard({ onNavigateToDispatch }: DashboardProps) {
               </div>
             </div>
             
-            <Button variant="outline" size="sm" className="w-full mt-4">
-              すべて表示
-            </Button>
+            <Dialog open={isAllActivitiesOpen} onOpenChange={setIsAllActivitiesOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full mt-4">
+                  すべて表示
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>すべてのアクティビティ</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  {allActivities.map((activity) => {
+                    const IconComponent = activity.icon;
+                    return (
+                      <div key={activity.id} className="flex items-start gap-3 p-3 border rounded-lg">
+                        <div className={`w-8 h-8 bg-${activity.color}-100 rounded-full flex items-center justify-center flex-shrink-0`}>
+                          <IconComponent className={`w-4 h-4 text-${activity.color}-600`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{activity.title}</p>
+                          <p className="text-xs text-muted-foreground">{activity.description}</p>
+                          <p className="text-xs text-muted-foreground">{activity.time}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-end">
+                  <Button variant="outline" onClick={() => setIsAllActivitiesOpen(false)}>
+                    閉じる
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </Card>
 
           {/* クイックスタッツ */}

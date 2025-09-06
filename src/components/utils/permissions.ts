@@ -6,7 +6,7 @@ export const canAccessUserManagement = (user: User): boolean => {
 
 export const canEditEngineer = (user: User, engineer: Engineer): boolean => {
   if (user.systemRole === 'system_admin') return true;
-  if (user.systemRole === 'admin' && user.companyId === engineer.companyId) return true;
+  if (user.systemRole === 'admin') return true;
   if (user.systemRole === 'engineer_manager' && user.departmentId === engineer.departmentId) return true;
   return false;
 };

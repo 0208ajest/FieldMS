@@ -1,12 +1,12 @@
 import { Company, Department, User } from '@/types';
 
 export const companies: Company[] = [
-  { id: 1, name: 'FieldMS 株式会社', address: '東京都千代田区1-1-1', phone: '03-0000-0000', isActive: true },
+  { id: 1, name: 'FieldMS 株式会社', address: '東京都千代田区1-1-1', phone: '03-0000-0000', isActive: true, createdAt: new Date('2024-01-01') },
 ];
 
 export const departments: Department[] = [
-  { id: 1, name: '技術部', companyId: 1, managerId: 2, isActive: true },
-  { id: 2, name: '保守部', companyId: 1, managerId: 3, isActive: true },
+  { id: 1, name: '技術部', companyId: 1, isActive: true, createdAt: new Date('2024-01-01') },
+  { id: 2, name: '保守部', companyId: 1, isActive: true, createdAt: new Date('2024-01-01') },
 ];
 
 export const users: User[] = [
@@ -20,7 +20,6 @@ export const users: User[] = [
     isActive: true,
     phone: '03-1234-5678',
     createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
   },
   {
     id: 2,
@@ -32,7 +31,6 @@ export const users: User[] = [
     isActive: true,
     phone: '03-1234-5679',
     createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
   },
   {
     id: 3,
@@ -44,7 +42,6 @@ export const users: User[] = [
     isActive: true,
     phone: '03-1111-2222',
     createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
   },
   {
     id: 4,
@@ -56,7 +53,6 @@ export const users: User[] = [
     isActive: true,
     phone: '03-3333-4444',
     createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
   },
   {
     id: 5,
@@ -68,7 +64,6 @@ export const users: User[] = [
     isActive: true,
     phone: '090-1234-5678',
     createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
   },
 ];
 

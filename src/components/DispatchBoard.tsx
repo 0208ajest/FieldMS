@@ -7,8 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Filter, Plus, User, MapPin, Clock, Calendar, MoreHorizontal, CheckCircle } from 'lucide-react';
-import { User as UserType } from '@/types';
+import { User as UserType, WorkOrder } from '@/types';
 import { workOrders, engineers } from '@/components/data/engineerData';
 
 interface DispatchBoardProps {
@@ -17,12 +22,45 @@ interface DispatchBoardProps {
 
 export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoardProps) {
   const [draggedItem, setDraggedItem] = useState<typeof workOrders[0] | null>(null);
+  const [isNewWorkOrderOpen, setIsNewWorkOrderOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState<typeof workOrders[0] | null>(null);
+  const [workOrdersList, setWorkOrdersList] = useState(workOrders);
+  const [filters, setFilters] = useState({
+    priority: 'all',
+    engineer: 'all',
+    status: 'all'
+  });
+
+  const [newWorkOrder, setNewWorkOrder] = useState({
+    title: '',
+    description: '',
+    location: '',
+    priority: 'medium',
+    estimatedDuration: '',
+    dueDate: '',
+    customerName: '',
+    customerPhone: ''
+  });
+
+  // フィルタリングされた作業指示書を取得
+  const getFilteredWorkOrders = () => {
+    return workOrdersList.filter(wo => {
+      const matchesPriority = filters.priority === 'all' || wo.priority === filters.priority;
+      const matchesEngineer = filters.engineer === 'all' || wo.assignedEngineerId?.toString() === filters.engineer;
+      const matchesStatus = filters.status === 'all' || wo.status === filters.status;
+      return matchesPriority && matchesEngineer && matchesStatus;
+    });
+  };
+
+  const filteredWorkOrders = getFilteredWorkOrders();
 
   // ステータス別に作業指示書を分類
-  const unassignedWorkOrders = workOrders.filter(wo => wo.status === 'pending');
-  const assignedWorkOrders = workOrders.filter(wo => wo.status === 'assigned');
-  const inProgressWorkOrders = workOrders.filter(wo => wo.status === 'in_progress');
-  const completedWorkOrders = workOrders.filter(wo => wo.status === 'completed');
+  const unassignedWorkOrders = filteredWorkOrders.filter(wo => wo.status === 'pending');
+  const assignedWorkOrders = filteredWorkOrders.filter(wo => wo.status === 'assigned');
+  const inProgressWorkOrders = filteredWorkOrders.filter(wo => wo.status === 'in_progress');
+  const completedWorkOrders = filteredWorkOrders.filter(wo => wo.status === 'completed');
 
   const priorityLabels = {
     low: '低',
@@ -69,8 +107,74 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
     }
   };
 
+  // 新規作業指示作成
+  const handleCreateWorkOrder = () => {
+    const workOrder: WorkOrder = {
+      id: workOrdersList.length + 1,
+      title: newWorkOrder.title,
+      description: newWorkOrder.description,
+      location: newWorkOrder.location,
+      priority: newWorkOrder.priority as 'low' | 'medium' | 'high' | 'urgent',
+      estimatedDuration: parseInt(newWorkOrder.estimatedDuration),
+      dueDate: new Date(newWorkOrder.dueDate),
+      status: 'pending',
+      assignedEngineerId: null,
+      progress: 0,
+      createdAt: new Date(),
+      completedAt: null
+    };
+
+    setWorkOrdersList([...workOrdersList, workOrder]);
+    setIsNewWorkOrderOpen(false);
+    setNewWorkOrder({
+      title: '',
+      description: '',
+      location: '',
+      priority: 'medium',
+      estimatedDuration: '',
+      dueDate: '',
+      customerName: '',
+      customerPhone: ''
+    });
+  };
+
+  // エンジニア割り当て
+  const handleAssignEngineer = (engineerId: number) => {
+    if (selectedWorkOrder) {
+      const updatedWorkOrders = workOrdersList.map(wo => 
+        wo.id === selectedWorkOrder.id 
+          ? { ...wo, assignedEngineerId: engineerId, status: 'assigned' as const }
+          : wo
+      );
+      setWorkOrdersList(updatedWorkOrders);
+      setIsAssignDialogOpen(false);
+      setSelectedWorkOrder(null);
+    }
+  };
+
+  // 作業開始
+  const handleStartWork = (workOrderId: number) => {
+    const updatedWorkOrders = workOrdersList.map(wo => 
+      wo.id === workOrderId 
+        ? { ...wo, status: 'in_progress' as const }
+        : wo
+    );
+    setWorkOrdersList(updatedWorkOrders);
+  };
+
+  // 作業完了
+  const handleCompleteWork = (workOrderId: number) => {
+    const updatedWorkOrders = workOrdersList.map(wo => 
+      wo.id === workOrderId 
+        ? { ...wo, status: 'completed' as const, completedAt: new Date() }
+        : wo
+    );
+    setWorkOrdersList(updatedWorkOrders);
+  };
+
   const openAssignDialog = (workOrder: typeof workOrders[0]) => {
-    console.log('エンジニア割り当て:', workOrder);
+    setSelectedWorkOrder(workOrder);
+    setIsAssignDialogOpen(true);
   };
 
   const openEngineerDetails = (engineer: typeof engineers[0]) => {
@@ -86,14 +190,183 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
           <p className="text-muted-foreground">作業指示書の割り当てと進捗管理</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <Filter className="w-4 h-4 mr-2" />
-            フィルター
-          </Button>
-          <Button size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            新規作業指示
-          </Button>
+          <Dialog open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Filter className="w-4 h-4 mr-2" />
+                フィルター
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[400px]">
+              <DialogHeader>
+                <DialogTitle>フィルター設定</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="priority-filter">優先度</Label>
+                  <Select value={filters.priority} onValueChange={(value) => setFilters({...filters, priority: value})}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">すべて</SelectItem>
+                      <SelectItem value="urgent">緊急</SelectItem>
+                      <SelectItem value="high">高</SelectItem>
+                      <SelectItem value="medium">中</SelectItem>
+                      <SelectItem value="low">低</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="engineer-filter">エンジニア</Label>
+                  <Select value={filters.engineer} onValueChange={(value) => setFilters({...filters, engineer: value})}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">すべて</SelectItem>
+                      {engineers.map(engineer => (
+                        <SelectItem key={engineer.id} value={engineer.id.toString()}>
+                          {engineer.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="status-filter">ステータス</Label>
+                  <Select value={filters.status} onValueChange={(value) => setFilters({...filters, status: value})}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">すべて</SelectItem>
+                      <SelectItem value="pending">未割り当て</SelectItem>
+                      <SelectItem value="assigned">割り当て済み</SelectItem>
+                      <SelectItem value="in_progress">進行中</SelectItem>
+                      <SelectItem value="completed">完了</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setFilters({priority: 'all', engineer: 'all', status: 'all'})}>
+                  リセット
+                </Button>
+                <Button onClick={() => setIsFilterOpen(false)}>
+                  適用
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={isNewWorkOrderOpen} onOpenChange={setIsNewWorkOrderOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                新規作業指示
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>新規作業指示</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="title">タイトル</Label>
+                  <Input
+                    id="title"
+                    value={newWorkOrder.title}
+                    onChange={(e) => setNewWorkOrder({...newWorkOrder, title: e.target.value})}
+                    placeholder="作業指示のタイトル"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="description">詳細</Label>
+                  <Textarea
+                    id="description"
+                    value={newWorkOrder.description}
+                    onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})}
+                    placeholder="作業内容の詳細"
+                    rows={3}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="location">場所</Label>
+                    <Input
+                      id="location"
+                      value={newWorkOrder.location}
+                      onChange={(e) => setNewWorkOrder({...newWorkOrder, location: e.target.value})}
+                      placeholder="作業場所"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="priority">優先度</Label>
+                    <Select value={newWorkOrder.priority} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, priority: value})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">低</SelectItem>
+                        <SelectItem value="medium">中</SelectItem>
+                        <SelectItem value="high">高</SelectItem>
+                        <SelectItem value="urgent">緊急</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="duration">予想時間（分）</Label>
+                    <Input
+                      id="duration"
+                      type="number"
+                      value={newWorkOrder.estimatedDuration}
+                      onChange={(e) => setNewWorkOrder({...newWorkOrder, estimatedDuration: e.target.value})}
+                      placeholder="60"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="dueDate">期限</Label>
+                    <Input
+                      id="dueDate"
+                      type="date"
+                      value={newWorkOrder.dueDate}
+                      onChange={(e) => setNewWorkOrder({...newWorkOrder, dueDate: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="customerName">顧客名</Label>
+                    <Input
+                      id="customerName"
+                      value={newWorkOrder.customerName}
+                      onChange={(e) => setNewWorkOrder({...newWorkOrder, customerName: e.target.value})}
+                      placeholder="顧客名"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="customerPhone">顧客電話</Label>
+                    <Input
+                      id="customerPhone"
+                      value={newWorkOrder.customerPhone}
+                      onChange={(e) => setNewWorkOrder({...newWorkOrder, customerPhone: e.target.value})}
+                      placeholder="090-1234-5678"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsNewWorkOrderOpen(false)}>
+                  キャンセル
+                </Button>
+                <Button onClick={handleCreateWorkOrder}>
+                  作成
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -244,7 +517,12 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
                     
                     {/* ステータス更新ボタン */}
                     <div className="flex gap-1 mt-2">
-                      <Button variant="outline" size="sm" className="flex-1 text-xs">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1 text-xs"
+                        onClick={() => handleStartWork(workOrder.id)}
+                      >
                         開始
                       </Button>
                       <Button variant="ghost" size="sm">
@@ -297,7 +575,12 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
                     </div>
                     
                     {/* 完了ボタン */}
-                    <Button variant="outline" size="sm" className="w-full text-xs">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full text-xs"
+                      onClick={() => handleCompleteWork(workOrder.id)}
+                    >
                       完了報告
                     </Button>
                   </div>
@@ -345,8 +628,8 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
         </div>
       </div>
 
-      {/* エンジニア状況パネル（下部固定） */}
-      <Card className="fixed bottom-6 left-6 right-6 z-30 shadow-lg">
+      {/* エンジニア状況セクション（下部） */}
+      <Card>
         <div className="p-4">
           <h3 className="font-semibold mb-4">エンジニア状況</h3>
           <div className="flex gap-4 overflow-x-auto">
@@ -387,6 +670,58 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
           </div>
         </div>
       </Card>
+
+      {/* エンジニア割り当てダイアログ */}
+      <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>エンジニア割り当て</DialogTitle>
+          </DialogHeader>
+          {selectedWorkOrder && (
+            <div className="space-y-4 py-4">
+              <div className="p-3 bg-muted rounded-lg">
+                <h4 className="font-medium text-sm">{selectedWorkOrder.title}</h4>
+                <p className="text-xs text-muted-foreground">{selectedWorkOrder.description}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>担当エンジニアを選択</Label>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {engineers.filter(e => e.status === 'available' || e.status === 'active').map(engineer => (
+                    <div 
+                      key={engineer.id}
+                      className="flex items-center gap-3 p-2 border rounded-lg cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleAssignEngineer(engineer.id)}
+                    >
+                      <Avatar className="w-8 h-8">
+                        <AvatarFallback className="bg-primary text-primary-foreground">
+                          {engineer.name[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{engineer.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {engineer.skills.slice(0, 3).join(', ')}
+                        </p>
+                      </div>
+                      <Badge className={`text-xs ${
+                        engineer.status === 'available' ? 'bg-green-100 text-green-700' :
+                        'bg-blue-100 text-blue-700'
+                      }`}>
+                        {statusLabels[engineer.status as keyof typeof statusLabels]}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setIsAssignDialogOpen(false)}>
+              キャンセル
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

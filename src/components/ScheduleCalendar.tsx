@@ -4,8 +4,13 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Plus, X, User } from 'lucide-react';
-import { User as UserType } from '@/types';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { ChevronLeft, ChevronRight, Plus, X, User, AlertTriangle } from 'lucide-react';
+import { User as UserType, Schedule } from '@/types';
 import { schedules, engineers } from '@/components/data/engineerData';
 
 interface ScheduleCalendarProps {
@@ -16,6 +21,21 @@ interface ScheduleCalendarProps {
 export default function ScheduleCalendar({ currentUser: _currentUser, engineerFilter }: ScheduleCalendarProps) {
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [isNewScheduleOpen, setIsNewScheduleOpen] = useState(false);
+  const [schedulesList, setSchedulesList] = useState(schedules);
+  const [conflictAlert, setConflictAlert] = useState<string | null>(null);
+
+  const [newSchedule, setNewSchedule] = useState({
+    title: '',
+    description: '',
+    engineerId: '',
+    startDate: '',
+    endDate: '',
+    startTime: '',
+    endTime: '',
+    status: 'scheduled',
+    priority: 'medium'
+  });
 
   // 現在の月のカレンダーデータを生成
   const generateCalendarDays = () => {
@@ -29,7 +49,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
     const current = new Date(startDate);
     
     for (let i = 0; i < 42; i++) {
-      const daySchedules = schedules.filter(schedule => {
+      const daySchedules = schedulesList.filter(schedule => {
         const scheduleDate = new Date(schedule.startDate);
         return scheduleDate.toDateString() === current.toDateString() &&
                (!engineerFilter || schedule.engineerId === engineerFilter);
@@ -39,6 +59,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
         date: current.getDate(),
         isCurrentMonth: current.getMonth() === month,
         isToday: current.toDateString() === new Date().toDateString(),
+        fullDate: new Date(current),
         schedules: daySchedules.map(schedule => ({
           ...schedule,
           engineerName: engineers.find(e => e.id === schedule.engineerId)?.name || '不明',
@@ -50,6 +71,66 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
     }
     
     return days;
+  };
+
+  // スケジュール重複チェック
+  const checkScheduleConflict = (engineerId: number, startDateTime: Date, endDateTime: Date) => {
+    const conflicts = schedulesList.filter(schedule => {
+      if (schedule.engineerId !== engineerId) return false;
+      
+      const existingStart = new Date(schedule.startDate);
+      const existingEnd = new Date(schedule.endDate);
+      
+      return (startDateTime < existingEnd && endDateTime > existingStart);
+    });
+    
+    return conflicts;
+  };
+
+  // 新規スケジュール作成
+  const handleCreateSchedule = () => {
+    if (!newSchedule.engineerId || !newSchedule.startDate || !newSchedule.startTime) {
+      setConflictAlert('必須項目を入力してください');
+      return;
+    }
+
+    const startDateTime = new Date(`${newSchedule.startDate}T${newSchedule.startTime}`);
+    const endDateTime = new Date(`${newSchedule.endDate || newSchedule.startDate}T${newSchedule.endTime || newSchedule.startTime}`);
+    
+    const conflicts = checkScheduleConflict(parseInt(newSchedule.engineerId), startDateTime, endDateTime);
+    
+    if (conflicts.length > 0) {
+      const engineerName = engineers.find(e => e.id === parseInt(newSchedule.engineerId))?.name;
+      setConflictAlert(`${engineerName}エンジニアのスケジュールが重複しています。時間を調整してください。`);
+      return;
+    }
+
+    const schedule: Schedule = {
+      id: schedulesList.length + 1,
+      title: newSchedule.title,
+      description: newSchedule.description,
+      engineerId: parseInt(newSchedule.engineerId),
+      startDate: startDateTime.toISOString(),
+      endDate: endDateTime.toISOString(),
+      status: newSchedule.status as 'scheduled' | 'in_progress' | 'completed' | 'cancelled',
+      priority: newSchedule.priority as 'low' | 'medium' | 'high' | 'urgent',
+      workOrderId: null
+    };
+
+    setSchedulesList([...schedulesList, schedule]);
+    setIsNewScheduleOpen(false);
+    setConflictAlert(null);
+    setNewSchedule({
+      title: '',
+      description: '',
+      engineerId: '',
+      startDate: '',
+      endDate: '',
+      startTime: '',
+      endTime: '',
+      status: 'scheduled',
+      priority: 'medium'
+    });
   };
 
   const calendarDays = generateCalendarDays();
@@ -66,8 +147,13 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
     window.location.reload(); // 簡易実装
   };
 
-  const openNewScheduleDialog = (day: { date: number; isCurrentMonth: boolean; isToday: boolean; schedules: Array<{ id: number; title: string; engineerName: string; startTime: string; status: string }> }) => {
-    console.log('新規スケジュール作成:', day);
+  const openNewScheduleDialog = (day: { date: number; isCurrentMonth: boolean; isToday: boolean; fullDate: Date; schedules: Array<{ id: number; title: string; engineerName: string; startTime: string; status: string }> }) => {
+    setNewSchedule({
+      ...newSchedule,
+      startDate: day.fullDate.toISOString().split('T')[0],
+      endDate: day.fullDate.toISOString().split('T')[0]
+    });
+    setIsNewScheduleOpen(true);
   };
 
   const openScheduleDetails = (schedule: { id: number; title: string; engineerName: string; startTime: string; status: string }) => {
@@ -134,10 +220,128 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
             </Button>
           </div>
           
-          <Button size="sm">
-            <Plus className="w-4 h-4 mr-2" />
-            新規スケジュール
-          </Button>
+          <Dialog open={isNewScheduleOpen} onOpenChange={setIsNewScheduleOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                新規スケジュール
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>新規スケジュール</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                {conflictAlert && (
+                  <div className="flex items-center gap-2 p-3 bg-orange-100 border border-orange-200 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-orange-600" />
+                    <span className="text-sm text-orange-800">{conflictAlert}</span>
+                  </div>
+                )}
+                <div className="grid gap-2">
+                  <Label htmlFor="title">タイトル</Label>
+                  <Input
+                    id="title"
+                    value={newSchedule.title}
+                    onChange={(e) => setNewSchedule({...newSchedule, title: e.target.value})}
+                    placeholder="スケジュールタイトル"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="description">詳細</Label>
+                  <Textarea
+                    id="description"
+                    value={newSchedule.description}
+                    onChange={(e) => setNewSchedule({...newSchedule, description: e.target.value})}
+                    placeholder="スケジュール詳細"
+                    rows={3}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="engineer">担当エンジニア</Label>
+                    <Select value={newSchedule.engineerId} onValueChange={(value) => setNewSchedule({...newSchedule, engineerId: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="エンジニアを選択" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {engineers.map(engineer => (
+                          <SelectItem key={engineer.id} value={engineer.id.toString()}>
+                            {engineer.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="priority">優先度</Label>
+                    <Select value={newSchedule.priority} onValueChange={(value) => setNewSchedule({...newSchedule, priority: value})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">低</SelectItem>
+                        <SelectItem value="medium">中</SelectItem>
+                        <SelectItem value="high">高</SelectItem>
+                        <SelectItem value="urgent">緊急</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="startDate">開始日</Label>
+                    <Input
+                      id="startDate"
+                      type="date"
+                      value={newSchedule.startDate}
+                      onChange={(e) => setNewSchedule({...newSchedule, startDate: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="endDate">終了日</Label>
+                    <Input
+                      id="endDate"
+                      type="date"
+                      value={newSchedule.endDate}
+                      onChange={(e) => setNewSchedule({...newSchedule, endDate: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="startTime">開始時間</Label>
+                    <Input
+                      id="startTime"
+                      type="time"
+                      value={newSchedule.startTime}
+                      onChange={(e) => setNewSchedule({...newSchedule, startTime: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="endTime">終了時間</Label>
+                    <Input
+                      id="endTime"
+                      type="time"
+                      value={newSchedule.endTime}
+                      onChange={(e) => setNewSchedule({...newSchedule, endTime: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => {
+                  setIsNewScheduleOpen(false);
+                  setConflictAlert(null);
+                }}>
+                  キャンセル
+                </Button>
+                <Button onClick={handleCreateSchedule}>
+                  作成
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -201,6 +405,11 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                         </div>
                       </div>
                     ))}
+                    {day.schedules.length > 3 && (
+                      <div className="text-xs text-muted-foreground text-center">
+                        +{day.schedules.length - 3}件
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
