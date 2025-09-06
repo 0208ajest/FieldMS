@@ -1,103 +1,149 @@
-import Image from "next/image";
+'use client';
+
+import { useMemo, useState } from 'react';
+import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
+import NotificationSystem from '@/components/NotificationSystem';
+import { Clipboard, Home as HomeIcon, Users as UsersIcon, Calendar as CalendarIcon, UserCog } from 'lucide-react';
+import { User } from '@/types';
+import { demoLoginCredentials } from '@/components/data/userData';
+import LoginScreen from '@/components/LoginScreen';
+import Dashboard from '@/components/Dashboard';
+import EngineerManagement from '@/components/EngineerManagement';
+import ScheduleCalendar from '@/components/ScheduleCalendar';
+import DispatchBoard from '@/components/DispatchBoard';
+import UserManagement from '@/components/UserManagement';
+
+type View = 'dashboard' | 'engineers' | 'schedule' | 'dispatch' | 'users';
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [activeView, setActiveView] = useState<View>('dashboard');
+  const [engineerFilter, setEngineerFilter] = useState<number | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  const canSeeUserManagement = useMemo(() => {
+    return currentUser ? ['system_admin', 'admin'].includes(currentUser.systemRole) : false;
+  }, [currentUser]);
+
+  if (!isAuthenticated || !currentUser) {
+    const handleLogin = async (email: string, password: string): Promise<boolean> => {
+      const found = demoLoginCredentials.find((d) => d.email === email && d.password === password);
+      if (found) {
+        setCurrentUser(found.user);
+        setIsAuthenticated(true);
+        return true;
+      }
+      return false;
+    };
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  return (
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full">
+        <Sidebar collapsible="icon" className="w-64 group-data-[collapsible=icon]:w-16">
+        <SidebarHeader className="p-4 border-b h-15">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
+              <Clipboard className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <div className="group-data-[collapsible=icon]:hidden">
+              <h2 className="font-semibold text-sm">FieldMS</h2>
+              <p className="text-xs text-muted-foreground">フィールドマネジメント</p>
+            </div>
+          </div>
+        </SidebarHeader>
+        <SidebarContent className="flex-1 overflow-y-auto">
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton isActive={activeView === 'dashboard'} onClick={() => setActiveView('dashboard')} className="w-full h-10 px-3 rounded-md">
+                    <HomeIcon className="w-4 h-4 mr-3" />
+                    <span className="group-data-[collapsible=icon]:hidden">ダッシュボード</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton isActive={activeView === 'engineers'} onClick={() => setActiveView('engineers')} className="w-full h-10 px-3 rounded-md">
+                    <UsersIcon className="w-4 h-4 mr-3" />
+                    <span className="group-data-[collapsible=icon]:hidden">エンジニア管理</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton isActive={activeView === 'schedule'} onClick={() => setActiveView('schedule')} className="w-full h-10 px-3 rounded-md">
+                    <CalendarIcon className="w-4 h-4 mr-3" />
+                    <span className="group-data-[collapsible=icon]:hidden">スケジュール</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton isActive={activeView === 'dispatch'} onClick={() => setActiveView('dispatch')} className="w-full h-10 px-3 rounded-md">
+                    <Clipboard className="w-4 h-4 mr-3" />
+                    <span className="group-data-[collapsible=icon]:hidden">ディスパッチ</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {canSeeUserManagement && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton isActive={activeView === 'users'} onClick={() => setActiveView('users')} className="w-full h-10 px-3 rounded-md">
+                      <UserCog className="w-4 h-4 mr-3" />
+                      <span className="group-data-[collapsible=icon]:hidden">ユーザー管理</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+      </Sidebar>
+
+      <main className="flex-1 flex flex-col">
+        <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex h-14 items-center px-4 gap-4">
+            <SidebarTrigger className="w-6 h-6" />
+            <div className="flex-1" />
+            <NotificationSystem />
+            <div className="flex items-center gap-2">
+              <div className="text-right">
+                <p className="text-sm font-medium">{currentUser?.name || 'ユーザー'}</p>
+                <p className="text-xs text-muted-foreground">{currentUser?.systemRole || '不明'}</p>
+              </div>
+              <Button className="w-8 h-8 bg-primary rounded-full p-0 hover:bg-primary/90">
+                <span className="text-sm text-primary-foreground font-medium">
+                  {currentUser?.name?.[0] || 'U'}
+                </span>
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1 p-6 overflow-auto">
+          {activeView === 'dashboard' && (
+            <Dashboard onNavigateToDispatch={() => setActiveView('dispatch')} />
+          )}
+          {activeView === 'engineers' && currentUser && (
+            <EngineerManagement 
+              currentUser={currentUser} 
+              onNavigateToSchedule={(engineerId) => {
+                setEngineerFilter(engineerId || null);
+                setActiveView('schedule');
+              }} 
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          )}
+          {activeView === 'schedule' && currentUser && (
+            <ScheduleCalendar 
+              currentUser={currentUser} 
+              engineerFilter={engineerFilter} 
+            />
+          )}
+          {activeView === 'dispatch' && currentUser && (
+            <DispatchBoard currentUser={currentUser} />
+          )}
+          {activeView === 'users' && currentUser && (
+            <UserManagement currentUser={currentUser} />
+          )}
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+    </SidebarProvider>
   );
 }
