@@ -153,6 +153,7 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
     setWorkOrdersList([...workOrdersList, workOrder]);
     setSchedulesList([...schedulesList, schedule]);
     setIsNewWorkOrderOpen(false);
+    setRecommendedEngineers([]);
     setNewWorkOrder({
       title: '',
       description: '',
@@ -234,10 +235,36 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
     setRecommendedEngineers(sortedEngineers.slice(0, 3)); // 上位3名をレコメンド
   };
 
-  // 期限日時の変更ハンドラー
-  const handleDueDateChange = (dueDate: string) => {
-    setNewWorkOrder({...newWorkOrder, endDate: dueDate});
-    getRecommendedEngineers(dueDate);
+  // 開始日の変更ハンドラー
+  const handleStartDateChange = (startDate: string) => {
+    setNewWorkOrder({...newWorkOrder, startDate});
+    if (startDate && newWorkOrder.startTime) {
+      getRecommendedEngineers(startDate);
+    }
+  };
+
+  // 開始時間の変更ハンドラー
+  const handleStartTimeChange = (startTime: string) => {
+    setNewWorkOrder({...newWorkOrder, startTime});
+    if (newWorkOrder.startDate && startTime) {
+      getRecommendedEngineers(newWorkOrder.startDate);
+    }
+  };
+
+  // 終了日の変更ハンドラー
+  const handleEndDateChange = (endDate: string) => {
+    setNewWorkOrder({...newWorkOrder, endDate});
+    if (endDate && newWorkOrder.endTime) {
+      getRecommendedEngineers(endDate);
+    }
+  };
+
+  // 終了時間の変更ハンドラー
+  const handleEndTimeChange = (endTime: string) => {
+    setNewWorkOrder({...newWorkOrder, endTime});
+    if (newWorkOrder.endDate && endTime) {
+      getRecommendedEngineers(newWorkOrder.endDate);
+    }
   };
 
   return (
@@ -391,7 +418,7 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
                       id="startDate"
                       type="date"
                       value={newWorkOrder.startDate}
-                      onChange={(e) => setNewWorkOrder({...newWorkOrder, startDate: e.target.value})}
+                      onChange={(e) => handleStartDateChange(e.target.value)}
                     />
                   </div>
                 </div>
@@ -402,7 +429,7 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
                       id="endDate"
                       type="date"
                       value={newWorkOrder.endDate}
-                      onChange={(e) => setNewWorkOrder({...newWorkOrder, endDate: e.target.value})}
+                      onChange={(e) => handleEndDateChange(e.target.value)}
                     />
                   </div>
                   <div className="grid gap-2">
@@ -411,7 +438,7 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
                       id="startTime"
                       type="time"
                       value={newWorkOrder.startTime}
-                      onChange={(e) => setNewWorkOrder({...newWorkOrder, startTime: e.target.value})}
+                      onChange={(e) => handleStartTimeChange(e.target.value)}
                     />
                   </div>
                 </div>
@@ -422,7 +449,7 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
                       id="endTime"
                       type="time"
                       value={newWorkOrder.endTime}
-                      onChange={(e) => setNewWorkOrder({...newWorkOrder, endTime: e.target.value})}
+                      onChange={(e) => handleEndTimeChange(e.target.value)}
                     />
                   </div>
                 </div>

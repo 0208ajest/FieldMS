@@ -25,6 +25,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
   const [schedulesList, setSchedulesList] = useState(schedules);
   const [workOrdersList, setWorkOrdersList] = useState(workOrders);
   const [conflictAlert, setConflictAlert] = useState<string | null>(null);
+  const [recommendedEngineers, setRecommendedEngineers] = useState<typeof engineers>([]);
 
   const [newSchedule, setNewSchedule] = useState({
     title: '',
@@ -144,6 +145,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
     setSchedulesList([...schedulesList, schedule]);
     setIsNewScheduleOpen(false);
     setConflictAlert(null);
+    setRecommendedEngineers([]);
     setNewSchedule({
       title: '',
       description: '',
@@ -209,6 +211,29 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
     });
   };
 
+  // 推奨エンジニアを取得
+  const getRecommendedEngineers = (date: string) => {
+    if (!date) {
+      setRecommendedEngineers([]);
+      return;
+    }
+
+    // 期限日時に空いているエンジニアを取得
+    const availableEngineers = engineers.filter(engineer => {
+      // 待機中または稼働中のエンジニアを対象
+      return engineer.status === 'available' || engineer.status === 'active';
+    });
+
+    // 優先度に基づいてソート（稼働中のエンジニアを優先）
+    const sortedEngineers = availableEngineers.sort((a, b) => {
+      if (a.status === 'available' && b.status === 'active') return 1;
+      if (a.status === 'active' && b.status === 'available') return -1;
+      return 0;
+    });
+
+    setRecommendedEngineers(sortedEngineers.slice(0, 3)); // 上位3名をレコメンド
+  };
+
   const navigateMonth = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
     newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
@@ -227,6 +252,39 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
       endDate: day.fullDate.toISOString().split('T')[0]
     });
     setIsNewScheduleOpen(true);
+    getRecommendedEngineers(day.fullDate.toISOString().split('T')[0]);
+  };
+
+  // 開始日の変更ハンドラー
+  const handleStartDateChange = (startDate: string) => {
+    setNewSchedule({...newSchedule, startDate});
+    if (startDate && newSchedule.startTime) {
+      getRecommendedEngineers(startDate);
+    }
+  };
+
+  // 開始時間の変更ハンドラー
+  const handleStartTimeChange = (startTime: string) => {
+    setNewSchedule({...newSchedule, startTime});
+    if (newSchedule.startDate && startTime) {
+      getRecommendedEngineers(newSchedule.startDate);
+    }
+  };
+
+  // 終了日の変更ハンドラー
+  const handleEndDateChange = (endDate: string) => {
+    setNewSchedule({...newSchedule, endDate});
+    if (endDate && newSchedule.endTime) {
+      getRecommendedEngineers(endDate);
+    }
+  };
+
+  // 終了時間の変更ハンドラー
+  const handleEndTimeChange = (endTime: string) => {
+    setNewSchedule({...newSchedule, endTime});
+    if (newSchedule.endDate && endTime) {
+      getRecommendedEngineers(newSchedule.endDate);
+    }
   };
 
   const openScheduleDetails = (schedule: Schedule) => {
@@ -368,7 +426,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                       id="startDate"
                       type="date"
                       value={newSchedule.startDate}
-                      onChange={(e) => setNewSchedule({...newSchedule, startDate: e.target.value})}
+                      onChange={(e) => handleStartDateChange(e.target.value)}
                     />
                   </div>
                   <div className="grid gap-2">
@@ -377,7 +435,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                       id="endDate"
                       type="date"
                       value={newSchedule.endDate}
-                      onChange={(e) => setNewSchedule({...newSchedule, endDate: e.target.value})}
+                      onChange={(e) => handleEndDateChange(e.target.value)}
                     />
                   </div>
                 </div>
@@ -388,7 +446,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                       id="startTime"
                       type="time"
                       value={newSchedule.startTime}
-                      onChange={(e) => setNewSchedule({...newSchedule, startTime: e.target.value})}
+                      onChange={(e) => handleStartTimeChange(e.target.value)}
                     />
                   </div>
                   <div className="grid gap-2">
@@ -397,7 +455,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                       id="endTime"
                       type="time"
                       value={newSchedule.endTime}
-                      onChange={(e) => setNewSchedule({...newSchedule, endTime: e.target.value})}
+                      onChange={(e) => handleEndTimeChange(e.target.value)}
                     />
                   </div>
                 </div>
@@ -442,6 +500,34 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                     />
                   </div>
                 </div>
+                
+                {/* 推奨エンジニア表示 */}
+                {recommendedEngineers.length > 0 && (
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h4 className="text-sm font-medium text-blue-900 mb-2">推奨エンジニア</h4>
+                    <div className="space-y-2">
+                      {recommendedEngineers.map((engineer) => (
+                        <div key={engineer.id} className="flex items-center justify-between p-2 bg-white rounded border">
+                          <div>
+                            <span className="font-medium text-sm">{engineer.name}</span>
+                            <span className="text-xs text-gray-500 ml-2">
+                              {engineer.departmentId === 1 ? '技術部' : '保守部'}
+                            </span>
+                          </div>
+                          <Badge className={
+                            engineer.status === 'available' ? 'bg-green-100 text-green-700' :
+                            engineer.status === 'active' ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-700'
+                          }>
+                            {engineer.status === 'available' ? '待機' :
+                             engineer.status === 'active' ? '稼働中' :
+                             engineer.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => {
