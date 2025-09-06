@@ -10,8 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ChevronLeft, ChevronRight, Plus, X, User, AlertTriangle } from 'lucide-react';
-import { User as UserType, Schedule } from '@/types';
-import { schedules, engineers } from '@/components/data/engineerData';
+import { User as UserType, Schedule, WorkOrder } from '@/types';
+import { schedules, engineers, workOrders } from '@/components/data/engineerData';
 
 interface ScheduleCalendarProps {
   currentUser: UserType;
@@ -23,6 +23,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isNewScheduleOpen, setIsNewScheduleOpen] = useState(false);
   const [schedulesList, setSchedulesList] = useState(schedules);
+  const [workOrdersList, setWorkOrdersList] = useState(workOrders);
   const [conflictAlert, setConflictAlert] = useState<string | null>(null);
 
   const [newSchedule, setNewSchedule] = useState({
@@ -34,7 +35,11 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
     startTime: '',
     endTime: '',
     status: 'scheduled',
-    priority: 'medium'
+    priority: 'medium',
+    estimatedDuration: '',
+    location: '',
+    customerName: '',
+    customerPhone: ''
   });
 
   // 現在の月のカレンダーデータを生成
@@ -105,6 +110,23 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
       return;
     }
 
+    // 作業指示を作成
+    const workOrder: WorkOrder = {
+      id: workOrdersList.length + 1,
+      title: newSchedule.title,
+      description: newSchedule.description,
+      location: newSchedule.location,
+      priority: newSchedule.priority as 'low' | 'medium' | 'high' | 'urgent',
+      estimatedDuration: parseInt(newSchedule.estimatedDuration) || 60,
+      dueDate: endDateTime,
+      status: 'pending',
+      assignedEngineerId: parseInt(newSchedule.engineerId),
+      progress: 0,
+      createdAt: new Date(),
+      completedAt: null
+    };
+
+    // スケジュールを作成
     const schedule: Schedule = {
       id: schedulesList.length + 1,
       title: newSchedule.title,
@@ -114,9 +136,11 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
       endDate: endDateTime.toISOString(),
       status: newSchedule.status as 'scheduled' | 'in_progress' | 'completed' | 'cancelled',
       priority: newSchedule.priority as 'low' | 'medium' | 'high' | 'urgent',
-      workOrderId: null
+      workOrderId: workOrder.id
     };
 
+    // 作業指示とスケジュールを同時に追加
+    setWorkOrdersList([...workOrdersList, workOrder]);
     setSchedulesList([...schedulesList, schedule]);
     setIsNewScheduleOpen(false);
     setConflictAlert(null);
@@ -129,7 +153,11 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
       startTime: '',
       endTime: '',
       status: 'scheduled',
-      priority: 'medium'
+      priority: 'medium',
+      estimatedDuration: '',
+      location: '',
+      customerName: '',
+      customerPhone: ''
     });
   };
 
@@ -263,14 +291,6 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
             >
               日間
             </Button>
-            <Button 
-              variant={view === 'list' ? 'default' : 'ghost'} 
-              size="sm" 
-              className="rounded-l-none"
-              onClick={() => setView('list')}
-            >
-              リスト
-            </Button>
           </div>
           
           <Dialog open={isNewScheduleOpen} onOpenChange={setIsNewScheduleOpen}>
@@ -378,6 +398,47 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                       type="time"
                       value={newSchedule.endTime}
                       onChange={(e) => setNewSchedule({...newSchedule, endTime: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="estimatedDuration">予想時間（分）</Label>
+                    <Input
+                      id="estimatedDuration"
+                      type="number"
+                      value={newSchedule.estimatedDuration}
+                      onChange={(e) => setNewSchedule({...newSchedule, estimatedDuration: e.target.value})}
+                      placeholder="60"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="location">場所</Label>
+                    <Input
+                      id="location"
+                      value={newSchedule.location}
+                      onChange={(e) => setNewSchedule({...newSchedule, location: e.target.value})}
+                      placeholder="作業場所"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="customerName">顧客名</Label>
+                    <Input
+                      id="customerName"
+                      value={newSchedule.customerName}
+                      onChange={(e) => setNewSchedule({...newSchedule, customerName: e.target.value})}
+                      placeholder="顧客名"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="customerPhone">顧客電話</Label>
+                    <Input
+                      id="customerPhone"
+                      value={newSchedule.customerPhone}
+                      onChange={(e) => setNewSchedule({...newSchedule, customerPhone: e.target.value})}
+                      placeholder="090-1234-5678"
                     />
                   </div>
                 </div>
@@ -495,7 +556,17 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                     <div className="text-xs text-muted-foreground">{engineer.departmentId === 1 ? '技術部' : '保守部'}</div>
                   </div>
                   {generateWeekData().map((date, dateIndex) => (
-                    <div key={dateIndex} className="p-2 border-r border-b last:border-r-0 min-h-20">
+                    <div 
+                      key={dateIndex} 
+                      className="p-2 border-r border-b last:border-r-0 min-h-20 cursor-pointer hover:bg-muted/30"
+                      onClick={() => openNewScheduleDialog({
+                        date: date.getDate(),
+                        isCurrentMonth: true,
+                        isToday: date.toDateString() === new Date().toDateString(),
+                        fullDate: date,
+                        schedules: []
+                      })}
+                    >
                       {getSchedulesForDate(date).filter(schedule => schedule.engineerId === engineer.id).map((schedule) => (
                         <div 
                           key={schedule.id}
@@ -543,7 +614,21 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                     <div className="text-xs text-muted-foreground">{engineer.departmentId === 1 ? '技術部' : '保守部'}</div>
                   </div>
                   {generateDayData().map((hour) => (
-                    <div key={hour} className="p-1 border-r border-b last:border-r-0 min-h-12">
+                    <div 
+                      key={hour} 
+                      className="p-1 border-r border-b last:border-r-0 min-h-12 cursor-pointer hover:bg-muted/30"
+                      onClick={() => {
+                        const date = new Date(currentDate);
+                        date.setHours(hour, 0, 0, 0);
+                        openNewScheduleDialog({
+                          date: date.getDate(),
+                          isCurrentMonth: true,
+                          isToday: date.toDateString() === new Date().toDateString(),
+                          fullDate: date,
+                          schedules: []
+                        });
+                      }}
+                    >
                       {getSchedulesForHour(currentDate, hour).filter(schedule => schedule.engineerId === engineer.id).map((schedule) => (
                         <div 
                           key={schedule.id}
@@ -566,50 +651,52 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
           </div>
         )}
 
-        {/* リスト表示 */}
-        {view === 'list' && (
-          <div className="p-6">
-            <div className="space-y-4">
-              {schedulesList
-                .filter(schedule => !engineerFilter || schedule.engineerId === engineerFilter)
-                .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-                .map((schedule) => {
-                  const engineer = engineers.find(e => e.id === schedule.engineerId);
-                  return (
-                    <div key={schedule.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
-                      <div className="flex items-center gap-4">
-                        <div className="w-3 h-3 rounded-full bg-primary"></div>
-                        <div>
-                          <h3 className="font-medium">{schedule.title}</h3>
-                          <p className="text-sm text-muted-foreground">{schedule.description}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-sm font-medium">{engineer?.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(schedule.startDate).toLocaleDateString('ja-JP')} 
-                            {new Date(schedule.startDate).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                        <Badge className={
-                          schedule.status === 'completed' ? 'bg-green-100 text-green-700' :
-                          schedule.status === 'in_progress' ? 'bg-orange-100 text-orange-700' :
-                          schedule.status === 'cancelled' ? 'bg-gray-100 text-gray-700' :
-                          'bg-blue-100 text-blue-700'
-                        }>
-                          {schedule.status === 'completed' ? '完了' :
-                           schedule.status === 'in_progress' ? '進行中' :
-                           schedule.status === 'cancelled' ? 'キャンセル' :
-                           '予定'}
-                        </Badge>
+      </Card>
+
+      {/* 予定リスト表示 */}
+      <Card>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">予定一覧</h3>
+          <div className="space-y-4">
+            {schedulesList
+              .filter(schedule => !engineerFilter || schedule.engineerId === engineerFilter)
+              .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+              .map((schedule) => {
+                const engineer = engineers.find(e => e.id === schedule.engineerId);
+                return (
+                  <div key={schedule.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
+                    <div className="flex items-center gap-4">
+                      <div className="w-3 h-3 rounded-full bg-primary"></div>
+                      <div>
+                        <h3 className="font-medium">{schedule.title}</h3>
+                        <p className="text-sm text-muted-foreground">{schedule.description}</p>
                       </div>
                     </div>
-                  );
-                })}
-            </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-sm font-medium">{engineer?.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(schedule.startDate).toLocaleDateString('ja-JP')} 
+                          {new Date(schedule.startDate).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                      <Badge className={
+                        schedule.status === 'completed' ? 'bg-green-100 text-green-700' :
+                        schedule.status === 'in_progress' ? 'bg-orange-100 text-orange-700' :
+                        schedule.status === 'cancelled' ? 'bg-gray-100 text-gray-700' :
+                        'bg-blue-100 text-blue-700'
+                      }>
+                        {schedule.status === 'completed' ? '完了' :
+                         schedule.status === 'in_progress' ? '進行中' :
+                         schedule.status === 'cancelled' ? 'キャンセル' :
+                         '予定'}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
-        )}
+        </div>
       </Card>
     </div>
   );

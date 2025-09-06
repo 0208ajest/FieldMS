@@ -26,6 +26,7 @@ export default function EngineerManagement({ currentUser: _currentUser, onNaviga
   const [statusFilter, setStatusFilter] = useState('all');
   const [isAddEngineerOpen, setIsAddEngineerOpen] = useState(false);
   const [isViewEngineerOpen, setIsViewEngineerOpen] = useState(false);
+  const [isEditEngineerOpen, setIsEditEngineerOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [selectedEngineer, setSelectedEngineer] = useState<Engineer | null>(null);
   const [engineerToDelete, setEngineerToDelete] = useState<Engineer | null>(null);
@@ -33,6 +34,18 @@ export default function EngineerManagement({ currentUser: _currentUser, onNaviga
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [newEngineer, setNewEngineer] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    departmentId: 1,
+    skills: [] as string[],
+    status: 'available',
+    avatar: '',
+    currentTask: '',
+    progress: 0
+  });
+
+  const [editEngineer, setEditEngineer] = useState({
     name: '',
     email: '',
     phone: '',
@@ -144,8 +157,40 @@ export default function EngineerManagement({ currentUser: _currentUser, onNaviga
   // エンジニア編集
   const handleEditEngineer = (engineer: Engineer) => {
     setSelectedEngineer(engineer);
-    // 編集機能は今後実装予定
-    console.log('エンジニア編集:', engineer);
+    setEditEngineer({
+      name: engineer.name,
+      email: engineer.email,
+      phone: engineer.phone,
+      departmentId: engineer.departmentId,
+      skills: engineer.skills,
+      status: engineer.status,
+      avatar: engineer.avatar || '',
+      currentTask: engineer.currentTask?.title || '',
+      progress: engineer.progress || 0
+    });
+    setIsEditEngineerOpen(true);
+  };
+
+  // エンジニア更新
+  const handleUpdateEngineer = () => {
+    if (selectedEngineer) {
+      const updatedEngineer: Engineer = {
+        ...selectedEngineer,
+        name: editEngineer.name,
+        email: editEngineer.email,
+        phone: editEngineer.phone,
+        departmentId: editEngineer.departmentId,
+        skills: editEngineer.skills,
+        status: editEngineer.status as 'active' | 'available' | 'busy' | 'inactive' | 'on_leave',
+        avatar: editEngineer.avatar,
+        currentTask: editEngineer.currentTask ? { title: editEngineer.currentTask, location: '' } : undefined,
+        progress: editEngineer.progress
+      };
+
+      setEngineersList(engineersList.map(e => e.id === selectedEngineer.id ? updatedEngineer : e));
+      setIsEditEngineerOpen(false);
+      setSelectedEngineer(null);
+    }
   };
 
   // エンジニア削除確認
@@ -510,6 +555,93 @@ export default function EngineerManagement({ currentUser: _currentUser, onNaviga
           <div className="flex justify-end">
             <Button variant="outline" onClick={() => setIsViewEngineerOpen(false)}>
               閉じる
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* エンジニア編集ダイアログ */}
+      <Dialog open={isEditEngineerOpen} onOpenChange={setIsEditEngineerOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>エンジニア編集</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">名前</Label>
+                <Input
+                  id="edit-name"
+                  value={editEngineer.name}
+                  onChange={(e) => setEditEngineer({...editEngineer, name: e.target.value})}
+                  placeholder="エンジニア名"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-email">メール</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editEngineer.email}
+                  onChange={(e) => setEditEngineer({...editEngineer, email: e.target.value})}
+                  placeholder="email@example.com"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-phone">電話番号</Label>
+                <Input
+                  id="edit-phone"
+                  value={editEngineer.phone}
+                  onChange={(e) => setEditEngineer({...editEngineer, phone: e.target.value})}
+                  placeholder="090-1234-5678"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-department">部門</Label>
+                <Select value={editEngineer.departmentId.toString()} onValueChange={(value) => setEditEngineer({...editEngineer, departmentId: parseInt(value)})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">技術部</SelectItem>
+                    <SelectItem value="2">保守部</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-skills">スキル</Label>
+              <Input
+                id="edit-skills"
+                value={editEngineer.skills.join(', ')}
+                onChange={(e) => setEditEngineer({...editEngineer, skills: e.target.value.split(',').map(s => s.trim()).filter(s => s)})}
+                placeholder="JavaScript, React, Node.js"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-status">ステータス</Label>
+              <Select value={editEngineer.status} onValueChange={(value) => setEditEngineer({...editEngineer, status: value})}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="available">待機</SelectItem>
+                  <SelectItem value="active">稼働中</SelectItem>
+                  <SelectItem value="busy">作業中</SelectItem>
+                  <SelectItem value="inactive">非稼働</SelectItem>
+                  <SelectItem value="on_leave">休暇中</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsEditEngineerOpen(false)}>
+              キャンセル
+            </Button>
+            <Button onClick={handleUpdateEngineer}>
+              更新
             </Button>
           </div>
         </DialogContent>

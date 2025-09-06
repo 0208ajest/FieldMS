@@ -25,10 +25,21 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isViewUserOpen, setIsViewUserOpen] = useState(false);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [usersList, setUsersList] = useState(users);
 
   const [newUser, setNewUser] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    systemRole: 'engineer',
+    companyId: 1,
+    departmentId: 1,
+    isActive: true
+  });
+
+  const [editUser, setEditUser] = useState({
     name: '',
     email: '',
     phone: '',
@@ -92,8 +103,36 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
   // ユーザー編集
   const handleEditUser = (user: User) => {
     setSelectedUser(user);
-    // 編集機能は今後実装予定
-    console.log('ユーザー編集:', user);
+    setEditUser({
+      name: user.name,
+      email: user.email,
+      phone: user.phone || '',
+      systemRole: user.systemRole,
+      companyId: user.companyId,
+      departmentId: user.departmentId,
+      isActive: user.isActive
+    });
+    setIsEditUserOpen(true);
+  };
+
+  // ユーザー更新
+  const handleUpdateUser = () => {
+    if (selectedUser) {
+      const updatedUser: User = {
+        ...selectedUser,
+        name: editUser.name,
+        email: editUser.email,
+        phone: editUser.phone,
+        systemRole: editUser.systemRole as 'system_admin' | 'admin' | 'dispatcher' | 'engineer_manager' | 'engineer',
+        companyId: editUser.companyId,
+        departmentId: editUser.departmentId,
+        isActive: editUser.isActive
+      };
+
+      setUsersList(usersList.map(u => u.id === selectedUser.id ? updatedUser : u));
+      setIsEditUserOpen(false);
+      setSelectedUser(null);
+    }
   };
 
   const getRoleBadge = (role: string) => {
@@ -483,6 +522,114 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
           <div className="flex justify-end">
             <Button variant="outline" onClick={() => setIsViewUserOpen(false)}>
               閉じる
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ユーザー編集ダイアログ */}
+      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>ユーザー編集</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-name">名前</Label>
+                <Input
+                  id="edit-name"
+                  value={editUser.name}
+                  onChange={(e) => setEditUser({...editUser, name: e.target.value})}
+                  placeholder="ユーザー名"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-email">メール</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editUser.email}
+                  onChange={(e) => setEditUser({...editUser, email: e.target.value})}
+                  placeholder="email@example.com"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-phone">電話番号</Label>
+                <Input
+                  id="edit-phone"
+                  value={editUser.phone}
+                  onChange={(e) => setEditUser({...editUser, phone: e.target.value})}
+                  placeholder="090-1234-5678"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-role">システムロール</Label>
+                <Select value={editUser.systemRole} onValueChange={(value) => setEditUser({...editUser, systemRole: value})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="system_admin">システム管理者</SelectItem>
+                    <SelectItem value="admin">管理者</SelectItem>
+                    <SelectItem value="dispatcher">ディスパッチャー</SelectItem>
+                    <SelectItem value="engineer_manager">エンジニアマネージャー</SelectItem>
+                    <SelectItem value="engineer">エンジニア</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-company">会社</Label>
+                <Select value={editUser.companyId.toString()} onValueChange={(value) => setEditUser({...editUser, companyId: parseInt(value)})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {companies.map(company => (
+                      <SelectItem key={company.id} value={company.id.toString()}>
+                        {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-department">部門</Label>
+                <Select value={editUser.departmentId.toString()} onValueChange={(value) => setEditUser({...editUser, departmentId: parseInt(value)})}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map(department => (
+                      <SelectItem key={department.id} value={department.id.toString()}>
+                        {department.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="edit-active"
+                checked={editUser.isActive}
+                onChange={(e) => setEditUser({...editUser, isActive: e.target.checked})}
+                className="rounded"
+              />
+              <Label htmlFor="edit-active">アクティブ</Label>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsEditUserOpen(false)}>
+              キャンセル
+            </Button>
+            <Button onClick={handleUpdateUser}>
+              更新
             </Button>
           </div>
         </DialogContent>

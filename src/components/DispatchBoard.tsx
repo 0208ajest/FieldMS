@@ -13,8 +13,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Filter, Plus, User, MapPin, Clock, Calendar, MoreHorizontal, CheckCircle } from 'lucide-react';
-import { User as UserType, WorkOrder } from '@/types';
-import { workOrders, engineers } from '@/components/data/engineerData';
+import { User as UserType, WorkOrder, Schedule } from '@/types';
+import { workOrders, engineers, schedules } from '@/components/data/engineerData';
 
 interface DispatchBoardProps {
   currentUser: UserType;
@@ -27,6 +27,7 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<typeof workOrders[0] | null>(null);
   const [workOrdersList, setWorkOrdersList] = useState(workOrders);
+  const [schedulesList, setSchedulesList] = useState(schedules);
   const [filters, setFilters] = useState({
     priority: 'all',
     engineer: 'all',
@@ -39,7 +40,10 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
     location: '',
     priority: 'medium',
     estimatedDuration: '',
-    dueDate: '',
+    startDate: '',
+    endDate: '',
+    startTime: '',
+    endTime: '',
     customerName: '',
     customerPhone: ''
   });
@@ -111,14 +115,21 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
 
   // 新規作業指示作成
   const handleCreateWorkOrder = () => {
+    if (!newWorkOrder.startDate || !newWorkOrder.startTime) {
+      return;
+    }
+
+    const startDateTime = new Date(`${newWorkOrder.startDate}T${newWorkOrder.startTime}`);
+    const endDateTime = new Date(`${newWorkOrder.endDate || newWorkOrder.startDate}T${newWorkOrder.endTime || newWorkOrder.startTime}`);
+
     const workOrder: WorkOrder = {
       id: workOrdersList.length + 1,
       title: newWorkOrder.title,
       description: newWorkOrder.description,
       location: newWorkOrder.location,
       priority: newWorkOrder.priority as 'low' | 'medium' | 'high' | 'urgent',
-      estimatedDuration: parseInt(newWorkOrder.estimatedDuration),
-      dueDate: new Date(newWorkOrder.dueDate),
+      estimatedDuration: parseInt(newWorkOrder.estimatedDuration) || 60,
+      dueDate: endDateTime,
       status: 'pending',
       assignedEngineerId: null,
       progress: 0,
@@ -126,7 +137,21 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
       completedAt: null
     };
 
+    // スケジュールも同時に作成
+    const schedule: Schedule = {
+      id: schedulesList.length + 1,
+      title: newWorkOrder.title,
+      description: newWorkOrder.description,
+      engineerId: 0, // 未割り当て
+      startDate: startDateTime.toISOString(),
+      endDate: endDateTime.toISOString(),
+      status: 'scheduled',
+      priority: newWorkOrder.priority as 'low' | 'medium' | 'high' | 'urgent',
+      workOrderId: workOrder.id
+    };
+
     setWorkOrdersList([...workOrdersList, workOrder]);
+    setSchedulesList([...schedulesList, schedule]);
     setIsNewWorkOrderOpen(false);
     setNewWorkOrder({
       title: '',
@@ -134,7 +159,10 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
       location: '',
       priority: 'medium',
       estimatedDuration: '',
-      dueDate: '',
+      startDate: '',
+      endDate: '',
+      startTime: '',
+      endTime: '',
       customerName: '',
       customerPhone: ''
     });
@@ -208,7 +236,7 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
 
   // 期限日時の変更ハンドラー
   const handleDueDateChange = (dueDate: string) => {
-    setNewWorkOrder({...newWorkOrder, dueDate});
+    setNewWorkOrder({...newWorkOrder, endDate: dueDate});
     getRecommendedEngineers(dueDate);
   };
 
@@ -358,12 +386,43 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="dueDate">期限</Label>
+                    <Label htmlFor="startDate">開始日</Label>
                     <Input
-                      id="dueDate"
+                      id="startDate"
                       type="date"
-                      value={newWorkOrder.dueDate}
-                      onChange={(e) => handleDueDateChange(e.target.value)}
+                      value={newWorkOrder.startDate}
+                      onChange={(e) => setNewWorkOrder({...newWorkOrder, startDate: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="endDate">終了日</Label>
+                    <Input
+                      id="endDate"
+                      type="date"
+                      value={newWorkOrder.endDate}
+                      onChange={(e) => setNewWorkOrder({...newWorkOrder, endDate: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="startTime">開始時間</Label>
+                    <Input
+                      id="startTime"
+                      type="time"
+                      value={newWorkOrder.startTime}
+                      onChange={(e) => setNewWorkOrder({...newWorkOrder, startTime: e.target.value})}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="endTime">終了時間</Label>
+                    <Input
+                      id="endTime"
+                      type="time"
+                      value={newWorkOrder.endTime}
+                      onChange={(e) => setNewWorkOrder({...newWorkOrder, endTime: e.target.value})}
                     />
                   </div>
                 </div>
