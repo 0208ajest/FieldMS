@@ -20,7 +20,7 @@ interface EngineerManagementProps {
   onNavigateToSchedule: (engineerId?: number) => void;
 }
 
-export default function EngineerManagement({ currentUser, onNavigateToSchedule }: EngineerManagementProps) {
+export default function EngineerManagement({ currentUser: _currentUser, onNavigateToSchedule }: EngineerManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');

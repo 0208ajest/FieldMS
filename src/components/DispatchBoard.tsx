@@ -20,7 +20,7 @@ interface DispatchBoardProps {
   currentUser: UserType;
 }
 
-export default function DispatchBoard({ currentUser }: DispatchBoardProps) {
+export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoardProps) {
   const [draggedItem, setDraggedItem] = useState<typeof workOrders[0] | null>(null);
   const [isNewWorkOrderOpen, setIsNewWorkOrderOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);

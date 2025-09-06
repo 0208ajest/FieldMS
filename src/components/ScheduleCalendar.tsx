@@ -18,7 +18,7 @@ interface ScheduleCalendarProps {
   engineerFilter?: number | null;
 }
 
-export default function ScheduleCalendar({ currentUser, engineerFilter }: ScheduleCalendarProps) {
+export default function ScheduleCalendar({ currentUser: _currentUser, engineerFilter }: ScheduleCalendarProps) {
   const [view, setView] = useState<'month' | 'week' | 'day' | 'list'>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isNewScheduleOpen, setIsNewScheduleOpen] = useState(false);
