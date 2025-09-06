@@ -1,0 +1,402 @@
+'use client';
+
+import { useState } from 'react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Users, Calendar, Clipboard, CheckCircle, AlertTriangle, Plus } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+
+interface DashboardProps {
+  onNavigateToDispatch: () => void;
+}
+
+export default function Dashboard({ onNavigateToDispatch }: DashboardProps) {
+  const [isNewWorkOrderOpen, setIsNewWorkOrderOpen] = useState(false);
+  const [isAllActivitiesOpen, setIsAllActivitiesOpen] = useState(false);
+  const [newWorkOrder, setNewWorkOrder] = useState({
+    title: '',
+    description: '',
+    priority: 'medium',
+    assignedEngineer: '',
+    dueDate: '',
+    estimatedHours: ''
+  });
+
+  // モックデータ
+  const scheduleData = [
+    { date: '1/1', scheduled: 12, completed: 10 },
+    { date: '1/2', scheduled: 15, completed: 14 },
+    { date: '1/3', scheduled: 18, completed: 16 },
+    { date: '1/4', scheduled: 20, completed: 18 },
+    { date: '1/5', scheduled: 16, completed: 15 },
+    { date: '1/6', scheduled: 14, completed: 13 },
+    { date: '1/7', scheduled: 22, completed: 20 },
+  ];
+
+  const engineerUtilizationData = [
+    { name: '田中', utilization: 85 },
+    { name: '山田', utilization: 92 },
+    { name: '佐藤', utilization: 78 },
+    { name: '鈴木', utilization: 88 },
+    { name: '高橋', utilization: 95 },
+  ];
+
+  const allActivities = [
+    { id: 1, type: 'completed', title: '作業完了', description: '田中エンジニア - サーバー保守', time: '5分前', icon: CheckCircle, color: 'green' },
+    { id: 2, type: 'schedule', title: '新規スケジュール', description: '山田エンジニア - 15:00-17:00', time: '15分前', icon: Calendar, color: 'blue' },
+    { id: 3, type: 'urgent', title: '緊急作業指示', description: 'ネットワーク障害対応', time: '30分前', icon: AlertTriangle, color: 'orange' },
+    { id: 4, type: 'assigned', title: '作業割り当て', description: '佐藤エンジニア - システム更新', time: '1時間前', icon: Clipboard, color: 'blue' },
+    { id: 5, type: 'completed', title: '作業完了', description: '鈴木エンジニア - データベース最適化', time: '2時間前', icon: CheckCircle, color: 'green' },
+    { id: 6, type: 'schedule', title: 'スケジュール変更', description: '高橋エンジニア - 時間変更', time: '3時間前', icon: Calendar, color: 'blue' },
+  ];
+
+  const handleNewWorkOrderSubmit = () => {
+    // 新規作業指示の作成処理
+    console.log('新規作業指示:', newWorkOrder);
+    setIsNewWorkOrderOpen(false);
+    setNewWorkOrder({
+      title: '',
+      description: '',
+      priority: 'medium',
+      assignedEngineer: '',
+      dueDate: '',
+      estimatedHours: ''
+    });
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* ページヘッダー */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">ダッシュボード</h1>
+          <p className="text-muted-foreground">システム概要とクイックアクション</p>
+        </div>
+        <div className="flex gap-2">
+          <Dialog open={isNewWorkOrderOpen} onOpenChange={setIsNewWorkOrderOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                新規作業指示
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>新規作業指示</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="title">タイトル</Label>
+                  <Input
+                    id="title"
+                    value={newWorkOrder.title}
+                    onChange={(e) => setNewWorkOrder({...newWorkOrder, title: e.target.value})}
+                    placeholder="作業指示のタイトル"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="description">詳細</Label>
+                  <Textarea
+                    id="description"
+                    value={newWorkOrder.description}
+                    onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})}
+                    placeholder="作業内容の詳細"
+                    rows={3}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="priority">優先度</Label>
+                    <Select value={newWorkOrder.priority} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, priority: value})}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">低</SelectItem>
+                        <SelectItem value="medium">中</SelectItem>
+                        <SelectItem value="high">高</SelectItem>
+                        <SelectItem value="urgent">緊急</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="estimatedHours">予想時間</Label>
+                    <Input
+                      id="estimatedHours"
+                      type="number"
+                      value={newWorkOrder.estimatedHours}
+                      onChange={(e) => setNewWorkOrder({...newWorkOrder, estimatedHours: e.target.value})}
+                      placeholder="時間"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="assignedEngineer">担当エンジニア</Label>
+                  <Select value={newWorkOrder.assignedEngineer} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, assignedEngineer: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="エンジニアを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tanaka">田中</SelectItem>
+                      <SelectItem value="yamada">山田</SelectItem>
+                      <SelectItem value="sato">佐藤</SelectItem>
+                      <SelectItem value="suzuki">鈴木</SelectItem>
+                      <SelectItem value="takahashi">高橋</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="dueDate">期限</Label>
+                  <Input
+                    id="dueDate"
+                    type="date"
+                    value={newWorkOrder.dueDate}
+                    onChange={(e) => setNewWorkOrder({...newWorkOrder, dueDate: e.target.value})}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsNewWorkOrderOpen(false)}>
+                  キャンセル
+                </Button>
+                <Button onClick={handleNewWorkOrderSubmit}>
+                  作成
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* 統計カードエリア: 4列グリッド */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 統計カード1: アクティブエンジニア */}
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">アクティブエンジニア</p>
+              <p className="text-2xl font-bold text-primary">24</p>
+            </div>
+            <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+              <Users className="w-6 h-6 text-primary" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center text-xs">
+            <span className="text-green-600">↗ +12%</span>
+            <span className="text-muted-foreground ml-1">前月比</span>
+          </div>
+        </Card>
+        
+        {/* 統計カード2: 今日のスケジュール */}
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">今日のスケジュール</p>
+              <p className="text-2xl font-bold text-blue-600">18</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Calendar className="w-6 h-6 text-blue-600" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center text-xs">
+            <span className="text-orange-600">3件進行中</span>
+          </div>
+        </Card>
+
+        {/* 統計カード3: 作業指示書 */}
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">未割り当て指示書</p>
+              <p className="text-2xl font-bold text-orange-600">7</p>
+            </div>
+            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+              <Clipboard className="w-6 h-6 text-orange-600" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <Button size="sm" variant="outline" onClick={onNavigateToDispatch}>
+              割り当て画面へ
+            </Button>
+          </div>
+        </Card>
+
+        {/* 統計カード4: 完了率 */}
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">今月完了率</p>
+              <p className="text-2xl font-bold text-green-600">94%</p>
+            </div>
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            </div>
+          </div>
+          <div className="mt-4">
+            <Progress value={94} className="h-2" />
+          </div>
+        </Card>
+      </div>
+
+      {/* メインコンテンツエリア: 2列レイアウト */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* 左カラム: チャートエリア (2/3幅) */}
+        <div className="lg:col-span-2 space-y-6">
+          
+          {/* 月間スケジュール推移チャート */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">月間スケジュール推移</h3>
+              <Select defaultValue="30days">
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="期間" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7days">過去7日</SelectItem>
+                  <SelectItem value="30days">過去30日</SelectItem>
+                  <SelectItem value="90days">過去90日</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* recharts LineChart */}
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={scheduleData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="scheduled" stroke="#ff6b35" strokeWidth={2} />
+                  <Line type="monotone" dataKey="completed" stroke="#10b981" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          {/* エンジニア稼働率チャート */}
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4">エンジニア稼働率</h3>
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={engineerUtilizationData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip />
+                  <Bar dataKey="utilization" fill="#ff6b35" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </div>
+
+        {/* 右カラム: アクティビティフィード (1/3幅) */}
+        <div className="space-y-6">
+          
+          {/* 最近のアクティビティ */}
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4">最近のアクティビティ</h3>
+            <div className="space-y-4">
+              {/* アクティビティアイテム */}
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">作業完了</p>
+                  <p className="text-xs text-muted-foreground">田中エンジニア - サーバー保守</p>
+                  <p className="text-xs text-muted-foreground">5分前</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Calendar className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">新規スケジュール</p>
+                  <p className="text-xs text-muted-foreground">山田エンジニア - 15:00-17:00</p>
+                  <p className="text-xs text-muted-foreground">15分前</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-4 h-4 text-orange-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">緊急作業指示</p>
+                  <p className="text-xs text-muted-foreground">ネットワーク障害対応</p>
+                  <p className="text-xs text-muted-foreground">30分前</p>
+                </div>
+              </div>
+            </div>
+            
+            <Dialog open={isAllActivitiesOpen} onOpenChange={setIsAllActivitiesOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full mt-4">
+                  すべて表示
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>すべてのアクティビティ</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  {allActivities.map((activity) => {
+                    const IconComponent = activity.icon;
+                    return (
+                      <div key={activity.id} className="flex items-start gap-3 p-3 border rounded-lg">
+                        <div className={`w-8 h-8 bg-${activity.color}-100 rounded-full flex items-center justify-center flex-shrink-0`}>
+                          <IconComponent className={`w-4 h-4 text-${activity.color}-600`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{activity.title}</p>
+                          <p className="text-xs text-muted-foreground">{activity.description}</p>
+                          <p className="text-xs text-muted-foreground">{activity.time}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-end">
+                  <Button variant="outline" onClick={() => setIsAllActivitiesOpen(false)}>
+                    閉じる
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </Card>
+
+          {/* クイックスタッツ */}
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4">今日の概要</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">進行中</span>
+                <Badge variant="secondary" className="bg-orange-100 text-orange-700">3件</Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">完了</span>
+                <Badge variant="secondary" className="bg-green-100 text-green-700">8件</Badge>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">予定</span>
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700">7件</Badge>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
