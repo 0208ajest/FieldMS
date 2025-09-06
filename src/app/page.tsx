@@ -42,8 +42,7 @@ export default function Home() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
-        <Sidebar collapsible="icon" className="w-64 group-data-[collapsible=icon]:w-16">
+      <Sidebar collapsible="icon" className="w-64 group-data-[collapsible=icon]:w-16 border-r bg-sidebar">
         <SidebarHeader className="p-4 border-b h-15">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
@@ -55,7 +54,7 @@ export default function Home() {
             </div>
           </div>
         </SidebarHeader>
-        <SidebarContent className="flex-1 overflow-y-auto">
+        <SidebarContent className="flex-1 overflow-y-auto bg-sidebar">
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
@@ -120,8 +119,8 @@ export default function Home() {
         </SidebarContent>
       </Sidebar>
 
-      <main className="flex-1 flex flex-col">
-        <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <main className="flex-1 flex flex-col ml-64 group-data-[collapsible=icon]:ml-16 transition-[margin-left] duration-200 ease-linear">
+            <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex h-14 items-center px-4 gap-4">
             <SidebarTrigger className="w-6 h-6" />
             <div className="flex-1" />
@@ -140,9 +139,9 @@ export default function Home() {
               />
             </div>
           </div>
-        </header>
+            </header>
 
-        <div className="flex-1 p-6 overflow-auto">
+            <div className="flex-1 p-6 overflow-auto">
           {activeView === 'dashboard' && (
             <Dashboard onNavigateToDispatch={() => setActiveView('dispatch')} />
           )}
@@ -170,9 +169,8 @@ export default function Home() {
           {activeView === 'settings' && (
             <SettingsPage />
           )}
-        </div>
-      </main>
-      </div>
+            </div>
+          </main>
     </SidebarProvider>
   );
 }
