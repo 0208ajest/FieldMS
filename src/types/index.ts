@@ -8,6 +8,7 @@ export interface User {
   departmentId: number;
   isActive: boolean;
   avatar?: string;
+  bio?: string;
   createdAt: Date;
   lastLoginAt?: Date | null;
 }

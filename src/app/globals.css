@@ -130,3 +130,7 @@
 .priority-medium { @apply bg-yellow-100 text-yellow-700; }
 .priority-high { @apply bg-orange-100 text-orange-700; }
 .priority-urgent { @apply bg-red-100 text-red-700; }
+
+/* Grid utilities for schedule views */
+.grid-cols-8 { grid-template-columns: 200px repeat(7, 1fr); }
+.grid-cols-25 { grid-template-columns: 200px repeat(24, 1fr); }

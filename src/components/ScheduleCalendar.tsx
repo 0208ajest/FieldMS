@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,7 +19,7 @@ interface ScheduleCalendarProps {
 }
 
 export default function ScheduleCalendar({ currentUser: _currentUser, engineerFilter }: ScheduleCalendarProps) {
-  const [view, setView] = useState<'month' | 'week' | 'day'>('month');
+  const [view, setView] = useState<'month' | 'week' | 'day' | 'list'>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isNewScheduleOpen, setIsNewScheduleOpen] = useState(false);
   const [schedulesList, setSchedulesList] = useState(schedules);
@@ -136,6 +136,51 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
   const calendarDays = generateCalendarDays();
   const filteredEngineer = engineerFilter ? engineers.find(e => e.id === engineerFilter) : null;
 
+  // 週間表示用のデータ生成
+  const generateWeekData = () => {
+    const startOfWeek = new Date(currentDate);
+    const day = startOfWeek.getDay();
+    startOfWeek.setDate(startOfWeek.getDate() - day);
+    
+    const weekDays = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + i);
+      weekDays.push(date);
+    }
+    
+    return weekDays;
+  };
+
+  // 日間表示用のデータ生成（24時間）
+  const generateDayData = () => {
+    const hours = [];
+    for (let i = 0; i < 24; i++) {
+      hours.push(i);
+    }
+    return hours;
+  };
+
+  // スケジュールを時間別に取得
+  const getSchedulesForDate = (date: Date) => {
+    return schedulesList.filter(schedule => {
+      const scheduleDate = new Date(schedule.startDate);
+      return scheduleDate.toDateString() === date.toDateString() &&
+             (!engineerFilter || schedule.engineerId === engineerFilter);
+    });
+  };
+
+  // スケジュールを時間別に取得
+  const getSchedulesForHour = (date: Date, hour: number) => {
+    return schedulesList.filter(schedule => {
+      const scheduleDate = new Date(schedule.startDate);
+      const scheduleHour = scheduleDate.getHours();
+      return scheduleDate.toDateString() === date.toDateString() &&
+             scheduleHour === hour &&
+             (!engineerFilter || schedule.engineerId === engineerFilter);
+    });
+  };
+
   const navigateMonth = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
     newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
@@ -156,7 +201,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
     setIsNewScheduleOpen(true);
   };
 
-  const openScheduleDetails = (schedule: { id: number; title: string; engineerName: string; startTime: string; status: string }) => {
+  const openScheduleDetails = (schedule: Schedule) => {
     console.log('スケジュール詳細:', schedule);
   };
 
@@ -213,10 +258,18 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
             <Button 
               variant={view === 'day' ? 'default' : 'ghost'} 
               size="sm" 
-              className="rounded-l-none"
+              className="rounded-none border-x-0"
               onClick={() => setView('day')}
             >
               日間
+            </Button>
+            <Button 
+              variant={view === 'list' ? 'default' : 'ghost'} 
+              size="sm" 
+              className="rounded-l-none"
+              onClick={() => setView('list')}
+            >
+              リスト
             </Button>
           </div>
           
@@ -419,18 +472,141 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
 
         {/* 週間表示 */}
         {view === 'week' && (
-          <div className="p-6">
-            <div className="text-center text-muted-foreground">
-              週間表示は実装予定です
+          <div className="p-0">
+            <div className="grid grid-cols-8 border-b">
+              <div className="p-4 text-center text-sm font-medium border-r">
+                エンジニア
+              </div>
+              {generateWeekData().map((date, index) => (
+                <div key={index} className="p-4 text-center text-sm font-medium border-r last:border-r-0">
+                  <div>{date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {date.toLocaleDateString('ja-JP', { weekday: 'short' })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="grid grid-cols-8">
+              {engineers.map((engineer) => (
+                <React.Fragment key={engineer.id}>
+                  <div className="p-4 border-r border-b bg-muted/30">
+                    <div className="font-medium text-sm">{engineer.name}</div>
+                    <div className="text-xs text-muted-foreground">{engineer.departmentId === 1 ? '技術部' : '保守部'}</div>
+                  </div>
+                  {generateWeekData().map((date, dateIndex) => (
+                    <div key={dateIndex} className="p-2 border-r border-b last:border-r-0 min-h-20">
+                      {getSchedulesForDate(date).filter(schedule => schedule.engineerId === engineer.id).map((schedule) => (
+                        <div 
+                          key={schedule.id}
+                          className={`text-xs p-1 rounded mb-1 cursor-pointer hover:opacity-80 ${
+                            schedule.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            schedule.status === 'in_progress' ? 'bg-orange-100 text-orange-800' :
+                            schedule.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}
+                          onClick={() => openScheduleDetails(schedule)}
+                        >
+                          <div className="truncate">{schedule.title}</div>
+                          <div className="text-xs opacity-75">
+                            {new Date(schedule.startDate).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </React.Fragment>
+              ))}
             </div>
           </div>
         )}
 
         {/* 日間表示 */}
         {view === 'day' && (
+          <div className="p-0">
+            <div className="grid grid-cols-25 border-b">
+              <div className="p-4 text-center text-sm font-medium border-r">
+                エンジニア
+              </div>
+              {generateDayData().map((hour) => (
+                <div key={hour} className="p-2 text-center text-xs font-medium border-r last:border-r-0">
+                  {hour}:00
+                </div>
+              ))}
+            </div>
+            
+            <div className="grid grid-cols-25">
+              {engineers.map((engineer) => (
+                <React.Fragment key={engineer.id}>
+                  <div className="p-4 border-r border-b bg-muted/30">
+                    <div className="font-medium text-sm">{engineer.name}</div>
+                    <div className="text-xs text-muted-foreground">{engineer.departmentId === 1 ? '技術部' : '保守部'}</div>
+                  </div>
+                  {generateDayData().map((hour) => (
+                    <div key={hour} className="p-1 border-r border-b last:border-r-0 min-h-12">
+                      {getSchedulesForHour(currentDate, hour).filter(schedule => schedule.engineerId === engineer.id).map((schedule) => (
+                        <div 
+                          key={schedule.id}
+                          className={`text-xs p-1 rounded cursor-pointer hover:opacity-80 ${
+                            schedule.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            schedule.status === 'in_progress' ? 'bg-orange-100 text-orange-800' :
+                            schedule.status === 'cancelled' ? 'bg-gray-100 text-gray-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}
+                          onClick={() => openScheduleDetails(schedule)}
+                        >
+                          <div className="truncate">{schedule.title}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* リスト表示 */}
+        {view === 'list' && (
           <div className="p-6">
-            <div className="text-center text-muted-foreground">
-              日間表示は実装予定です
+            <div className="space-y-4">
+              {schedulesList
+                .filter(schedule => !engineerFilter || schedule.engineerId === engineerFilter)
+                .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+                .map((schedule) => {
+                  const engineer = engineers.find(e => e.id === schedule.engineerId);
+                  return (
+                    <div key={schedule.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
+                      <div className="flex items-center gap-4">
+                        <div className="w-3 h-3 rounded-full bg-primary"></div>
+                        <div>
+                          <h3 className="font-medium">{schedule.title}</h3>
+                          <p className="text-sm text-muted-foreground">{schedule.description}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-sm font-medium">{engineer?.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(schedule.startDate).toLocaleDateString('ja-JP')} 
+                            {new Date(schedule.startDate).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <Badge className={
+                          schedule.status === 'completed' ? 'bg-green-100 text-green-700' :
+                          schedule.status === 'in_progress' ? 'bg-orange-100 text-orange-700' :
+                          schedule.status === 'cancelled' ? 'bg-gray-100 text-gray-700' :
+                          'bg-blue-100 text-blue-700'
+                        }>
+                          {schedule.status === 'completed' ? '完了' :
+                           schedule.status === 'in_progress' ? '進行中' :
+                           schedule.status === 'cancelled' ? 'キャンセル' :
+                           '予定'}
+                        </Badge>
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           </div>
         )}

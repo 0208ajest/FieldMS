@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
 import NotificationSystem from '@/components/NotificationSystem';
-import { Clipboard, Home as HomeIcon, Users as UsersIcon, Calendar as CalendarIcon, UserCog } from 'lucide-react';
+import ProfileDialog from '@/components/ProfileDialog';
+import { Clipboard, Home as HomeIcon, Users as UsersIcon, Calendar as CalendarIcon, UserCog, Settings, HelpCircle } from 'lucide-react';
 import { User } from '@/types';
 import { demoLoginCredentials } from '@/components/data/userData';
 import LoginScreen from '@/components/LoginScreen';
@@ -13,8 +13,9 @@ import EngineerManagement from '@/components/EngineerManagement';
 import ScheduleCalendar from '@/components/ScheduleCalendar';
 import DispatchBoard from '@/components/DispatchBoard';
 import UserManagement from '@/components/UserManagement';
+import SettingsPage from '@/components/SettingsPage';
 
-type View = 'dashboard' | 'engineers' | 'schedule' | 'dispatch' | 'users';
+type View = 'dashboard' | 'engineers' | 'schedule' | 'dispatch' | 'users' | 'settings';
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -23,7 +24,7 @@ export default function Home() {
   const [engineerFilter, setEngineerFilter] = useState<number | null>(null);
 
   const canSeeUserManagement = useMemo(() => {
-    return currentUser ? ['system_admin', 'admin'].includes(currentUser.systemRole) : false;
+    return currentUser ? currentUser.systemRole === 'system_admin' : false;
   }, [currentUser]);
 
   if (!isAuthenticated || !currentUser) {
@@ -93,6 +94,29 @@ export default function Home() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
+          
+          {/* 設定・ヘルプセクション */}
+          <SidebarGroup className="mt-auto">
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton isActive={activeView === 'settings'} onClick={() => setActiveView('settings')} className="w-full h-10 px-3 rounded-md">
+                    <Settings className="w-4 h-4 mr-3" />
+                    <span className="group-data-[collapsible=icon]:hidden">設定</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton 
+                    onClick={() => window.open('https://help.fieldms.com', '_blank')} 
+                    className="w-full h-10 px-3 rounded-md"
+                  >
+                    <HelpCircle className="w-4 h-4 mr-3" />
+                    <span className="group-data-[collapsible=icon]:hidden">ヘルプ</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         </SidebarContent>
       </Sidebar>
 
@@ -101,17 +125,19 @@ export default function Home() {
           <div className="flex h-14 items-center px-4 gap-4">
             <SidebarTrigger className="w-6 h-6" />
             <div className="flex-1" />
-            <NotificationSystem />
+            <NotificationSystem onNavigateToSchedule={(engineerId) => {
+              setEngineerFilter(engineerId || null);
+              setActiveView('schedule');
+            }} />
             <div className="flex items-center gap-2">
               <div className="text-right">
                 <p className="text-sm font-medium">{currentUser?.name || 'ユーザー'}</p>
                 <p className="text-xs text-muted-foreground">{currentUser?.systemRole || '不明'}</p>
               </div>
-              <Button className="w-8 h-8 bg-primary rounded-full p-0 hover:bg-primary/90">
-                <span className="text-sm text-primary-foreground font-medium">
-                  {currentUser?.name?.[0] || 'U'}
-                </span>
-              </Button>
+              <ProfileDialog 
+                currentUser={currentUser} 
+                onUpdateUser={(updatedUser) => setCurrentUser(updatedUser)}
+              />
             </div>
           </div>
         </header>
@@ -140,6 +166,9 @@ export default function Home() {
           )}
           {activeView === 'users' && currentUser && (
             <UserManagement currentUser={currentUser} />
+          )}
+          {activeView === 'settings' && (
+            <SettingsPage />
           )}
         </div>
       </main>

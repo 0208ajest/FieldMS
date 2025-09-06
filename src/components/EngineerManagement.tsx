@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Search, Download, Upload, Plus, Eye, Edit, Calendar, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { User, Engineer } from '@/types';
@@ -26,7 +26,9 @@ export default function EngineerManagement({ currentUser: _currentUser, onNaviga
   const [statusFilter, setStatusFilter] = useState('all');
   const [isAddEngineerOpen, setIsAddEngineerOpen] = useState(false);
   const [isViewEngineerOpen, setIsViewEngineerOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [selectedEngineer, setSelectedEngineer] = useState<Engineer | null>(null);
+  const [engineerToDelete, setEngineerToDelete] = useState<Engineer | null>(null);
   const [engineersList, setEngineersList] = useState(engineers);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -146,9 +148,19 @@ export default function EngineerManagement({ currentUser: _currentUser, onNaviga
     console.log('エンジニア編集:', engineer);
   };
 
-  // エンジニア削除
-  const handleDeleteEngineer = (engineerId: number) => {
-    setEngineersList(engineersList.filter(e => e.id !== engineerId));
+  // エンジニア削除確認
+  const handleDeleteEngineer = (engineer: Engineer) => {
+    setEngineerToDelete(engineer);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  // エンジニア削除実行
+  const confirmDeleteEngineer = () => {
+    if (engineerToDelete) {
+      setEngineersList(engineersList.filter(e => e.id !== engineerToDelete.id));
+      setIsDeleteConfirmOpen(false);
+      setEngineerToDelete(null);
+    }
   };
 
   // エンジニア詳細表示
@@ -406,7 +418,7 @@ export default function EngineerManagement({ currentUser: _currentUser, onNaviga
                     >
                       <Calendar className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteEngineer(engineer.id)}>
+                    <Button variant="ghost" size="sm" onClick={() => handleDeleteEngineer(engineer)}>
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
@@ -500,6 +512,42 @@ export default function EngineerManagement({ currentUser: _currentUser, onNaviga
               閉じる
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 削除確認ダイアログ */}
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>エンジニア削除確認</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-4">
+              以下のエンジニアを削除しますか？この操作は取り消すことができません。
+            </p>
+            {engineerToDelete && (
+              <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
+                <Avatar className="w-10 h-10">
+                  <AvatarImage src={engineerToDelete.avatar} />
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    {engineerToDelete.name[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-medium">{engineerToDelete.name}</p>
+                  <p className="text-sm text-muted-foreground">{engineerToDelete.email}</p>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteConfirmOpen(false)}>
+              キャンセル
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteEngineer}>
+              削除
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
