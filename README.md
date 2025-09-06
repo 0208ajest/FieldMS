@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FieldMS - フィールドマネジメントシステム
 
-## Getting Started
+エンジニアを軸とした現場管理Webアプリケーション
 
-First, run the development server:
+## 🚀 概要
+
+FieldMSは、エンジニアのスケジュール管理、作業指示書の配信、現場の進捗管理を効率化するWebアプリケーションです。
+
+## ✨ 主要機能
+
+### 📊 ダッシュボード
+- 統計カード（アクティブエンジニア、今日のスケジュール、未割り当て指示書、完了率）
+- 月間スケジュール推移チャート
+- エンジニア稼働率チャート
+- 最近のアクティビティフィード
+
+### 👥 エンジニア管理
+- エンジニア一覧・検索・フィルタリング
+- スキル・部門・ステータス管理
+- スケジュール連携
+
+### 📅 スケジュールカレンダー
+- 月間カレンダー表示
+- エンジニア別フィルタリング
+- スケジュールステータス管理
+
+### 📋 ディスパッチボード
+- カンバンボード（未割り当て・割り当て済み・進行中・完了）
+- ドラッグ&ドロップ対応
+- 優先度別管理
+
+### 👤 ユーザー管理
+- 権限ベースアクセス制御
+- 組織階層管理（会社・部門）
+- ユーザー登録・編集
+
+## 🛠️ 技術スタック
+
+- **Frontend**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS v4
+- **UI Components**: shadcn/ui + Radix UI
+- **Icons**: Lucide React
+- **Charts**: Recharts
+- **Backend**: Supabase (予定)
+
+## 🔐 権限システム
+
+1. **システム管理者**: 全機能アクセス
+2. **管理者**: ユーザー管理含む全機能
+3. **ディスパッチャー**: ディスパッチ・スケジュール管理
+4. **エンジニア管理**: エンジニア管理・スケジュール閲覧
+5. **エンジニア**: 自分のスケジュール閲覧のみ
+
+## 🚀 セットアップ
+
+### 前提条件
+- Node.js 18.0.0以上
+- npm または yarn
+
+### インストール
 
 ```bash
+# リポジトリをクローン
+git clone https://github.com/[ユーザー名]/FieldMS.git
+cd FieldMS
+
+# 依存関係をインストール
+npm install
+
+# 開発サーバーを起動
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### デモアカウント
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| 権限 | メール | パスワード |
+|------|--------|------------|
+| システム管理者 | admin@fieldms.com | admin123 |
+| 管理者 | manager@fieldms.com | manager123 |
+| ディスパッチャー | dispatcher@fieldms.com | dispatch123 |
+| エンジニア管理 | engmanager@fieldms.com | eng123 |
+| エンジニア | engineer@fieldms.com | engineer123 |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📱 レスポンシブデザイン
 
-## Learn More
+- **Mobile**: 320px以上
+- **Tablet**: 768px以上  
+- **Desktop**: 1024px以上
 
-To learn more about Next.js, take a look at the following resources:
+## 🎨 デザインシステム
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **プライマリカラー**: オレンジ (#ff6b35)
+- **ステータス色**: 予定(青)・進行中(オレンジ)・完了(緑)・キャンセル(グレー)
+- **優先度色**: 低(グレー)・中(黄)・高(オレンジ)・緊急(赤)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📋 今後の予定
 
-## Deploy on Vercel
+- [ ] Supabase連携（データベース・認証・リアルタイム）
+- [ ] Vercelデプロイ
+- [ ] モバイルアプリ対応
+- [ ] 通知システム強化
+- [ ] レポート機能
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 📄 ライセンス
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT License
+
+## 🤝 コントリビューション
+
+プルリクエストやイシューの報告を歓迎します。
+
+---
+
+**FieldMS** - 現場管理を効率化する
