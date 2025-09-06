@@ -44,6 +44,8 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
     customerPhone: ''
   });
 
+  const [recommendedEngineers, setRecommendedEngineers] = useState<typeof engineers>([]);
+
   // フィルタリングされた作業指示書を取得
   const getFilteredWorkOrders = () => {
     return workOrdersList.filter(wo => {
@@ -179,6 +181,35 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
 
   const openEngineerDetails = (engineer: typeof engineers[0]) => {
     console.log('エンジニア詳細:', engineer);
+  };
+
+  // エンジニアレコメンド機能
+  const getRecommendedEngineers = (dueDate: string) => {
+    if (!dueDate) {
+      setRecommendedEngineers([]);
+      return;
+    }
+
+    // 期限日時に空いているエンジニアを取得
+    const availableEngineers = engineers.filter(engineer => {
+      // 待機中または稼働中のエンジニアを対象
+      return engineer.status === 'available' || engineer.status === 'active';
+    });
+
+    // 優先度に基づいてソート（稼働中のエンジニアを優先）
+    const sortedEngineers = availableEngineers.sort((a, b) => {
+      if (a.status === 'available' && b.status === 'active') return 1;
+      if (a.status === 'active' && b.status === 'available') return -1;
+      return 0;
+    });
+
+    setRecommendedEngineers(sortedEngineers.slice(0, 3)); // 上位3名をレコメンド
+  };
+
+  // 期限日時の変更ハンドラー
+  const handleDueDateChange = (dueDate: string) => {
+    setNewWorkOrder({...newWorkOrder, dueDate});
+    getRecommendedEngineers(dueDate);
   };
 
   return (
@@ -332,7 +363,7 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
                       id="dueDate"
                       type="date"
                       value={newWorkOrder.dueDate}
-                      onChange={(e) => setNewWorkOrder({...newWorkOrder, dueDate: e.target.value})}
+                      onChange={(e) => handleDueDateChange(e.target.value)}
                     />
                   </div>
                 </div>
@@ -356,6 +387,40 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
                     />
                   </div>
                 </div>
+                
+                {/* レコメンドエンジニア */}
+                {recommendedEngineers.length > 0 && (
+                  <div className="grid gap-2">
+                    <Label>推奨エンジニア</Label>
+                    <div className="grid grid-cols-1 gap-2">
+                      {recommendedEngineers.map(engineer => (
+                        <div key={engineer.id} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="bg-primary text-primary-foreground">
+                              {engineer.name[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{engineer.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {engineer.departmentId === 1 ? '技術部' : '保守部'} • 
+                              {engineer.status === 'available' ? '待機中' : '稼働中'}
+                            </p>
+                          </div>
+                          <Badge className={`text-xs ${
+                            engineer.status === 'available' ? 'bg-green-100 text-green-700' :
+                            'bg-orange-100 text-orange-700'
+                          }`}>
+                            {engineer.status === 'available' ? '推奨' : '稼働中'}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      期限日時に空いているエンジニアを表示しています
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsNewWorkOrderOpen(false)}>
@@ -632,6 +697,56 @@ export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoa
       <Card>
         <div className="p-4">
           <h3 className="font-semibold mb-4">エンジニア状況</h3>
+          
+          {/* エンジニア統計カード */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="p-4 border rounded-lg bg-blue-50">
+              <div className="flex items-center gap-2">
+                <User className="w-5 h-5 text-blue-600" />
+                <div>
+                  <p className="text-2xl font-bold text-blue-600">{engineers.length}</p>
+                  <p className="text-sm text-blue-600">総エンジニア数</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 border rounded-lg bg-orange-50">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-orange-600" />
+                <div>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {engineers.filter(e => e.status === 'busy').length}
+                  </p>
+                  <p className="text-sm text-orange-600">作業中</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 border rounded-lg bg-green-50">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <div>
+                  <p className="text-2xl font-bold text-green-600">
+                    {engineers.filter(e => e.status === 'available').length}
+                  </p>
+                  <p className="text-sm text-green-600">待機中</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 border rounded-lg bg-purple-50">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-purple-600" />
+                <div>
+                  <p className="text-2xl font-bold text-purple-600">
+                    {engineers.filter(e => e.status === 'on_leave').length}
+                  </p>
+                  <p className="text-sm text-purple-600">休暇中</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
           <div className="flex gap-4 overflow-x-auto">
             {engineers.map(engineer => (
               <div 
