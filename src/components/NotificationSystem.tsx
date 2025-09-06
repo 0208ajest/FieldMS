@@ -1,126 +1,170 @@
 'use client';
 
-import { Bell } from 'lucide-react';
+import { useState } from 'react';
+import { Bell, AlertCircle, Calendar, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-
-export interface Notification {
-  id: number;
-  type: 'system' | 'schedule' | 'work_order' | 'alert';
-  title: string;
-  description?: string;
-  createdAt: Date;
-  read: boolean;
-  scheduleId?: number;
-  engineerId?: number;
-}
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { Notification } from '@/types';
 
 interface NotificationSystemProps {
-  onNavigateToSchedule?: (engineerId?: number) => void;
+  onNavigateToSchedule?: (scheduleId: number, engineerId?: number) => void;
 }
 
 export default function NotificationSystem({ onNavigateToSchedule }: NotificationSystemProps) {
-  const mock: Notification[] = [
-    { 
-      id: 1, 
-      type: 'work_order', 
-      title: '新規作業指示 #5001', 
-      description: '緊急対応が必要です',
-      createdAt: new Date(), 
-      read: false 
-    },
-    { 
-      id: 2, 
-      type: 'schedule', 
-      title: 'スケジュール更新: 田中 太郎', 
-      description: '明日のスケジュールが変更されました',
-      createdAt: new Date(), 
+  const [isOpen, setIsOpen] = useState(false);
+
+  // モック通知データ
+  const mockNotifications: Notification[] = [
+    {
+      id: 1,
+      type: 'unassigned_schedule',
+      title: '未割り当ての予定があります',
+      description: 'システムメンテナンス作業 - エンジニアの割り当てが必要です',
+      scheduleId: 101,
+      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2時間前
       read: false,
-      scheduleId: 1,
-      engineerId: 1
     },
-    { 
-      id: 3, 
-      type: 'system', 
-      title: 'メンテナンス予定: 今夜1:00', 
-      description: 'システムメンテナンスのため一時的にサービスが停止します',
-      createdAt: new Date(), 
-      read: true 
-    },
-    { 
-      id: 4, 
-      type: 'alert', 
-      title: 'スケジュール重複警告', 
-      description: '佐藤 花子のスケジュールが重複しています',
-      createdAt: new Date(), 
+    {
+      id: 2,
+      type: 'assigned_schedule',
+      title: '新しい予定が割り当てられました',
+      description: '緊急対応作業 - 明日の午前中に実施予定',
+      scheduleId: 102,
+      engineerId: 1,
+      engineerName: '田中 太郎',
+      createdAt: new Date(Date.now() - 30 * 60 * 1000), // 30分前
       read: false,
-      scheduleId: 2,
-      engineerId: 2
+    },
+    {
+      id: 3,
+      type: 'unassigned_schedule',
+      title: '未割り当ての予定があります',
+      description: '定期点検作業 - 来週月曜日の実施予定',
+      scheduleId: 103,
+      createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4時間前
+      read: true,
     },
   ];
 
-  const unread = mock.filter((n) => !n.read).length;
+  const unreadCount = mockNotifications.filter(n => !n.read).length;
 
   const handleNotificationClick = (notification: Notification) => {
-    if (notification.type === 'schedule' || notification.type === 'alert') {
-      if (notification.engineerId && onNavigateToSchedule) {
-        onNavigateToSchedule(notification.engineerId);
-      }
+    if (onNavigateToSchedule) {
+      onNavigateToSchedule(notification.scheduleId, notification.engineerId);
+    }
+    setIsOpen(false);
+  };
+
+  const getNotificationIcon = (type: Notification['type']) => {
+    switch (type) {
+      case 'unassigned_schedule':
+        return <AlertCircle className="w-5 h-5 text-orange-500" />;
+      case 'assigned_schedule':
+        return <Calendar className="w-5 h-5 text-blue-500" />;
+      default:
+        return <Bell className="w-5 h-5" />;
+    }
+  };
+
+  const getNotificationTypeLabel = (type: Notification['type']) => {
+    switch (type) {
+      case 'unassigned_schedule':
+        return '未割り当て';
+      case 'assigned_schedule':
+        return '割り当て済み';
+      default:
+        return '通知';
     }
   };
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+    <Sheet open={isOpen} onOpenChange={setIsOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative hover:bg-accent">
           <Bell className="w-5 h-5" />
-          {unread > 0 && (
-            <Badge className="absolute -top-1 -right-1 px-1 h-5 min-w-5 flex items-center justify-center bg-primary text-primary-foreground">
-              {unread}
+          {unreadCount > 0 && (
+            <Badge className="absolute -top-1 -right-1 px-1 h-5 min-w-5 flex items-center justify-center bg-primary text-primary-foreground text-xs">
+              {unreadCount}
             </Badge>
           )}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuLabel>通知</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {mock.map((n) => (
-          <DropdownMenuItem 
-            key={n.id} 
-            className="flex flex-col items-start gap-1 cursor-pointer"
-            onClick={() => handleNotificationClick(n)}
-          >
-            <div className="flex items-center gap-2 w-full">
-              <span className={`w-2 h-2 rounded-full ${n.read ? 'bg-muted' : 'bg-primary'}`} />
-              <span className="text-sm font-medium truncate">{n.title}</span>
-              <span className="ml-auto text-xs text-muted-foreground">
-                {n.createdAt.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}
-              </span>
+      </SheetTrigger>
+      <SheetContent side="right" className="w-96">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <Bell className="w-5 h-5" />
+            通知
+          </SheetTitle>
+          <SheetDescription className="flex items-center justify-between">
+            <span>システムからの通知一覧です</span>
+            {unreadCount > 0 && (
+              <Badge variant="secondary" className="ml-2">
+                {unreadCount}件の未読
+              </Badge>
+            )}
+          </SheetDescription>
+        </SheetHeader>
+        
+        <div className="mt-6 space-y-4">
+          {mockNotifications.length === 0 ? (
+            <div className="p-4 text-center text-muted-foreground">
+              通知はありません
             </div>
-            {n.description && (
-              <span className="text-xs text-muted-foreground line-clamp-2">
-                {n.description}
-              </span>
-            )}
-            {(n.type === 'schedule' || n.type === 'alert') && (
-              <span className="text-xs text-primary">
-                クリックしてスケジュールを表示
-              </span>
-            )}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          ) : (
+            mockNotifications.map((notification) => (
+              <div 
+                key={notification.id} 
+                className="p-4 border rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                onClick={() => handleNotificationClick(notification)}
+              >
+                <div className="flex items-start gap-3">
+                  {getNotificationIcon(notification.type)}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm font-medium">
+                        {notification.title}
+                      </span>
+                      <Badge 
+                        variant={notification.type === 'unassigned_schedule' ? 'destructive' : 'default'}
+                        className="text-xs"
+                      >
+                        {getNotificationTypeLabel(notification.type)}
+                      </Badge>
+                      {!notification.read && (
+                        <div className="w-2 h-2 bg-primary rounded-full flex-shrink-0" />
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      {notification.description}
+                    </p>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        {notification.createdAt.toLocaleString('ja-JP', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                      <span className="text-primary">
+                        クリックして詳細を表示
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
-
-
-

@@ -2,6 +2,32 @@
 
 エンジニアを軸とした現場管理Webアプリケーション
 
+## 🛡️ **重要: Firebase実装時のUI保護**
+
+**⚠️ Firebase実装時は必ずUI保護手順に従ってください**
+
+### 🚀 **Firebase実装前の必須手順**
+```bash
+# 1. UI保護スクリプトを実行
+npm run protect-ui
+
+# 2. 実装ガイドを確認
+cat FIREBASE_IMPLEMENTATION_GUIDE.md
+```
+
+### 🚨 **問題が発生した場合**
+```bash
+# 緊急復元スクリプトを実行
+npm run emergency-restore
+```
+
+### 📋 **保護対象ファイル**
+- レイアウトファイル: `src/app/page.tsx`, `src/app/layout.tsx`
+- 設定ファイル: `next.config.js`, `tailwind.config.js`
+- UIコンポーネント: `src/components/*.tsx`
+
+**詳細は `FIREBASE_IMPLEMENTATION_GUIDE.md` を参照してください**
+
 ## 🚀 概要
 
 FieldMSは、エンジニアのスケジュール管理、作業指示書の配信、現場の進捗管理を効率化するWebアプリケーションです。

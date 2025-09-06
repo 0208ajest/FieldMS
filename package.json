@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "setup-github": "./setup-github.sh",
-    "deploy": "npm run build && npm run setup-github"
+    "deploy": "npm run build && npm run setup-github",
+    "protect-ui": "chmod +x scripts/protect-ui.sh && ./scripts/protect-ui.sh",
+    "emergency-restore": "chmod +x scripts/emergency-restore.sh && ./scripts/emergency-restore.sh"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.1",

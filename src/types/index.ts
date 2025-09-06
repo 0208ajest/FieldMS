@@ -13,6 +13,18 @@ export interface User {
   lastLoginAt?: Date | null;
 }
 
+export interface Notification {
+  id: number;
+  type: 'unassigned_schedule' | 'assigned_schedule';
+  title: string;
+  description: string;
+  scheduleId: number;
+  engineerId?: number;
+  engineerName?: string;
+  createdAt: Date;
+  read: boolean;
+}
+
 export interface Company {
   id: number;
   name: string;

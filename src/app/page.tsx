@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 import NotificationSystem from '@/components/NotificationSystem';
 import ProfileDialog from '@/components/ProfileDialog';
 import { Clipboard, Home as HomeIcon, Users as UsersIcon, Calendar as CalendarIcon, UserCog, Settings, HelpCircle } from 'lucide-react';
@@ -16,6 +16,84 @@ import UserManagement from '@/components/UserManagement';
 import SettingsPage from '@/components/SettingsPage';
 
 type View = 'dashboard' | 'engineers' | 'schedule' | 'dispatch' | 'users' | 'settings';
+
+interface MainContentProps {
+  currentUser: User | null;
+  activeView: View;
+  engineerFilter: number | null;
+  setActiveView: (view: View) => void;
+  setEngineerFilter: (filter: number | null) => void;
+  setCurrentUser: (user: User) => void;
+}
+
+function MainContent({ 
+  currentUser, 
+  activeView, 
+  engineerFilter, 
+  setActiveView, 
+  setEngineerFilter, 
+  setCurrentUser 
+}: MainContentProps) {
+  const { state } = useSidebar();
+  const isCollapsed = state === 'collapsed';
+  
+  return (
+    <main className={`flex-1 flex flex-col transition-[margin-left] duration-200 ease-linear ${isCollapsed ? 'ml-16' : 'ml-64'}`}>
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="flex h-16 items-center px-6 gap-4">
+          <SidebarTrigger className="w-6 h-6" />
+          <div className="flex-1" />
+          <NotificationSystem onNavigateToSchedule={(scheduleId, engineerId) => {
+            setEngineerFilter(engineerId || null);
+            setActiveView('schedule');
+          }} />
+          <div className="flex items-center gap-2">
+            <div className="text-right">
+              <p className="text-sm font-medium">{currentUser?.name || 'ユーザー'}</p>
+              <p className="text-xs text-muted-foreground">{currentUser?.systemRole || '不明'}</p>
+            </div>
+            {currentUser && (
+              <ProfileDialog 
+                currentUser={currentUser} 
+                onUpdateUser={(updatedUser) => setCurrentUser(updatedUser)}
+              />
+            )}
+          </div>
+        </div>
+      </header>
+
+      <div className="flex-1 p-8 overflow-auto bg-background">
+        {activeView === 'dashboard' && (
+          <Dashboard onNavigateToDispatch={() => setActiveView('dispatch')} />
+        )}
+        {activeView === 'engineers' && currentUser && (
+          <EngineerManagement 
+            currentUser={currentUser} 
+            onNavigateToSchedule={(engineerId) => {
+              setEngineerFilter(engineerId || null);
+              setActiveView('schedule');
+            }} 
+          />
+        )}
+        {activeView === 'schedule' && currentUser && (
+          <ScheduleCalendar 
+            currentUser={currentUser} 
+            engineerFilter={engineerFilter} 
+          />
+        )}
+        {activeView === 'dispatch' && currentUser && (
+          <DispatchBoard currentUser={currentUser} />
+        )}
+        {activeView === 'users' && currentUser && (
+          <UserManagement currentUser={currentUser} />
+        )}
+        {activeView === 'settings' && (
+          <SettingsPage />
+        )}
+      </div>
+    </main>
+  );
+}
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -42,8 +120,8 @@ export default function Home() {
 
   return (
     <SidebarProvider>
-      <Sidebar collapsible="icon" className="w-64 group-data-[collapsible=icon]:w-16 border-r bg-sidebar">
-        <SidebarHeader className="p-4 border-b h-15">
+      <Sidebar collapsible="icon" className="w-64 group-data-[collapsible=icon]:w-16 border-r bg-sidebar shadow-sm">
+        <SidebarHeader className="p-4 border-b h-16">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
               <Clipboard className="w-4 h-4 text-primary-foreground" />
@@ -119,58 +197,14 @@ export default function Home() {
         </SidebarContent>
       </Sidebar>
 
-      <main className="flex-1 flex flex-col ml-64 group-data-[collapsible=icon]:ml-16 transition-[margin-left] duration-200 ease-linear">
-            <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="flex h-14 items-center px-4 gap-4">
-            <SidebarTrigger className="w-6 h-6" />
-            <div className="flex-1" />
-            <NotificationSystem onNavigateToSchedule={(engineerId) => {
-              setEngineerFilter(engineerId || null);
-              setActiveView('schedule');
-            }} />
-            <div className="flex items-center gap-2">
-              <div className="text-right">
-                <p className="text-sm font-medium">{currentUser?.name || 'ユーザー'}</p>
-                <p className="text-xs text-muted-foreground">{currentUser?.systemRole || '不明'}</p>
-              </div>
-              <ProfileDialog 
-                currentUser={currentUser} 
-                onUpdateUser={(updatedUser) => setCurrentUser(updatedUser)}
-              />
-            </div>
-          </div>
-            </header>
-
-            <div className="flex-1 p-6 overflow-auto">
-          {activeView === 'dashboard' && (
-            <Dashboard onNavigateToDispatch={() => setActiveView('dispatch')} />
-          )}
-          {activeView === 'engineers' && currentUser && (
-            <EngineerManagement 
-              currentUser={currentUser} 
-              onNavigateToSchedule={(engineerId) => {
-                setEngineerFilter(engineerId || null);
-                setActiveView('schedule');
-              }} 
-            />
-          )}
-          {activeView === 'schedule' && currentUser && (
-            <ScheduleCalendar 
-              currentUser={currentUser} 
-              engineerFilter={engineerFilter} 
-            />
-          )}
-          {activeView === 'dispatch' && currentUser && (
-            <DispatchBoard currentUser={currentUser} />
-          )}
-          {activeView === 'users' && currentUser && (
-            <UserManagement currentUser={currentUser} />
-          )}
-          {activeView === 'settings' && (
-            <SettingsPage />
-          )}
-            </div>
-          </main>
+          <MainContent 
+            currentUser={currentUser}
+            activeView={activeView}
+            engineerFilter={engineerFilter}
+            setActiveView={setActiveView}
+            setEngineerFilter={setEngineerFilter}
+            setCurrentUser={setCurrentUser}
+          />
     </SidebarProvider>
   );
 }
