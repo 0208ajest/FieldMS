@@ -340,7 +340,7 @@ function MockAuthenticatedApp() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeView, setActiveView] = useState<View>('dashboard');
   const [engineerFilter, setEngineerFilter] = useState<number | null>(null);
-  const [companyName, setCompanyName] = useState<string>('');
+  const [companyName] = useState<string>('');
 
   const canSeeUserManagement = useMemo(() => {
     return currentUser ? currentUser.systemRole === 'system_admin' : false;

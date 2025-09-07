@@ -42,7 +42,7 @@ export default function Dashboard({ onNavigateToDispatch, currentUser }: Dashboa
         ]);
 
         // エンジニアデータを変換
-        const convertedEngineers: Engineer[] = firestoreEngineers.map((firestoreEngineer: Record<string, unknown>) => ({
+        const convertedEngineers: Engineer[] = firestoreEngineers.map((firestoreEngineer) => ({
           id: firestoreEngineer.id as string,
           name: firestoreEngineer.name as string,
           email: firestoreEngineer.email as string,
