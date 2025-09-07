@@ -41,11 +41,11 @@ export default function NotificationSystem({ onNavigateToDispatch, onNavigateToS
         const unassignedWorkOrders = workOrders.filter(wo => wo.status === 'pending');
         unassignedWorkOrders.forEach((workOrder) => {
           generatedNotifications.push({
-            id: `unassigned-${workOrder.id}`,
+            id: typeof workOrder.id === 'string' ? parseInt(workOrder.id) : workOrder.id,
             type: 'unassigned_schedule',
             title: '未割り当ての予定があります',
             description: `${workOrder.title} - エンジニアの割り当てが必要です`,
-            scheduleId: workOrder.id, // 文字列IDをそのまま使用
+            scheduleId: typeof workOrder.id === 'string' ? parseInt(workOrder.id) : workOrder.id,
             createdAt: workOrder.createdAt,
             read: false,
           });
@@ -59,12 +59,12 @@ export default function NotificationSystem({ onNavigateToDispatch, onNavigateToS
 
         recentAssignedSchedules.forEach((schedule) => {
           generatedNotifications.push({
-            id: `assigned-${schedule.id}`,
+            id: typeof schedule.id === 'string' ? parseInt(schedule.id) : schedule.id,
             type: 'assigned_schedule',
             title: '新しい予定が割り当てられました',
             description: `${schedule.title} - ${schedule.engineerName || 'エンジニア'}に割り当て`,
-            scheduleId: schedule.id, // 文字列IDをそのまま使用
-            engineerId: schedule.engineerId,
+            scheduleId: typeof schedule.id === 'string' ? parseInt(schedule.id) : schedule.id,
+            engineerId: schedule.engineerId ? (typeof schedule.engineerId === 'string' ? parseInt(schedule.engineerId) : schedule.engineerId) : undefined,
             engineerName: schedule.engineerName,
             createdAt: schedule.createdAt || new Date(),
             read: false,
@@ -75,11 +75,11 @@ export default function NotificationSystem({ onNavigateToDispatch, onNavigateToS
         const urgentWorkOrders = workOrders.filter(wo => wo.priority === 'urgent' && wo.status !== 'completed');
         urgentWorkOrders.forEach((workOrder) => {
           generatedNotifications.push({
-            id: `urgent-${workOrder.id}`,
+            id: typeof workOrder.id === 'string' ? parseInt(workOrder.id) : workOrder.id,
             type: 'unassigned_schedule',
             title: '緊急作業指示があります',
             description: `${workOrder.title} - 緊急対応が必要です`,
-            scheduleId: workOrder.id, // 文字列IDをそのまま使用
+            scheduleId: typeof workOrder.id === 'string' ? parseInt(workOrder.id) : workOrder.id,
             createdAt: workOrder.createdAt,
             read: false,
           });

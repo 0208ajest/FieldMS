@@ -8,6 +8,7 @@ import {
   deleteEngineer,
   calculateEngineerProjectCounts
 } from '@/lib/firestore';
+import { FirestoreEngineer } from '@/types';
 import { User } from '@/types';
 import { 
   Loader2,
@@ -169,24 +170,31 @@ export default function EngineerManagement({ }: EngineerManagementProps) {
       });
 
       // Firestoreにエンジニアを追加してドキュメントIDを取得
-      const newEngineerId = await addEngineer(engineerDataWithoutId as Record<string, unknown>);
+      const newEngineerId = await addEngineer(engineerDataWithoutId as Omit<FirestoreEngineer, 'id'>);
       console.log('✅ 新しいエンジニアが追加されました, ID:', newEngineerId);
       
       
       // 更新されたエンジニア一覧を取得してローカル状態を更新
       const updatedFirestoreEngineers = await getEngineers();
-      const updatedConvertedEngineers: Engineer[] = updatedFirestoreEngineers.map((firestoreEngineer) => ({
-        id: firestoreEngineer.id, // Firestoreの実際のドキュメントIDを保持
-        name: firestoreEngineer.name,
-        email: firestoreEngineer.email,
-        phone: firestoreEngineer.phone || '',
-        department: firestoreEngineer.department,
-        skills: firestoreEngineer.skills,
-        status: firestoreEngineer.status,
-        companyId: parseInt(firestoreEngineer.companyId) || 1,
-        createdAt: firestoreEngineer.createdAt,
-        updatedAt: firestoreEngineer.updatedAt,
-      }));
+      const updatedConvertedEngineers: Engineer[] = await Promise.all(
+        updatedFirestoreEngineers.map(async (firestoreEngineer) => {
+          const projectCounts = await calculateEngineerProjectCounts(firestoreEngineer.id);
+          return {
+            id: firestoreEngineer.id, // Firestoreの実際のドキュメントIDを保持
+            name: firestoreEngineer.name,
+            email: firestoreEngineer.email,
+            phone: firestoreEngineer.phone || '',
+            department: firestoreEngineer.department,
+            skills: firestoreEngineer.skills,
+            status: firestoreEngineer.status,
+            companyId: parseInt(firestoreEngineer.companyId) || 1,
+            createdAt: firestoreEngineer.createdAt,
+            updatedAt: firestoreEngineer.updatedAt,
+            totalProjects: projectCounts.totalProjects,
+            completedProjects: projectCounts.completedProjects,
+          };
+        })
+      );
       
       setEngineers(updatedConvertedEngineers);
       setIsAddEngineerOpen(false);
@@ -391,8 +399,8 @@ export default function EngineerManagement({ }: EngineerManagementProps) {
     let bValue: string | number = b[sortField];
 
     if (sortField === 'name') {
-      aValue = aValue.toLowerCase();
-      bValue = bValue.toLowerCase();
+      aValue = (aValue as string).toLowerCase();
+      bValue = (bValue as string).toLowerCase();
     }
 
     if (sortDirection === 'asc') {

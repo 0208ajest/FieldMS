@@ -13,7 +13,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { FirestoreUser, FirestoreEngineer, FirestoreSchedule, FirestoreWorkOrder } from '@/types';
+import { FirestoreUser, FirestoreEngineer, FirestoreSchedule, FirestoreWorkOrder, Schedule, WorkOrder } from '@/types';
 
 // コレクション参照
 export const usersCollection = collection(db, 'users');
@@ -154,7 +154,7 @@ export const calculateEngineerProjectCounts = async (engineerId: string) => {
       where('engineerId', '==', engineerId)
     );
     const scheduleSnapshot = await getDocs(scheduleQuery);
-    const schedules = scheduleSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const schedules = scheduleSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as Schedule));
 
     // 作業指示から案件数を取得
     const workOrderQuery = query(
@@ -162,7 +162,7 @@ export const calculateEngineerProjectCounts = async (engineerId: string) => {
       where('engineerId', '==', engineerId)
     );
     const workOrderSnapshot = await getDocs(workOrderQuery);
-    const workOrders = workOrderSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const workOrders = workOrderSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as WorkOrder));
 
     // 現在時刻を取得
     const now = new Date();
@@ -172,7 +172,7 @@ export const calculateEngineerProjectCounts = async (engineerId: string) => {
 
     // 完了案件数（予定時刻が過ぎているもの）
     const completedSchedules = schedules.filter(schedule => {
-      const endTime = schedule.endTime?.toDate ? schedule.endTime.toDate() : new Date(schedule.endTime);
+      const endTime = new Date(schedule.endDate);
       return endTime < now;
     });
 
@@ -182,7 +182,7 @@ export const calculateEngineerProjectCounts = async (engineerId: string) => {
       
       // 予定完了時刻での判定（estimatedDurationから計算）
       if (workOrder.createdAt && workOrder.estimatedDuration) {
-        const createdAt = workOrder.createdAt?.toDate ? workOrder.createdAt.toDate() : new Date(workOrder.createdAt);
+        const createdAt = new Date(workOrder.createdAt);
         const estimatedEndTime = new Date(createdAt.getTime() + workOrder.estimatedDuration * 60 * 1000); // 分をミリ秒に変換
         return estimatedEndTime < now;
       }

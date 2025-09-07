@@ -9,6 +9,7 @@ import {
   createUserWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
+import { updateUser } from './firestore';
 import { auth } from './firebase';
 import { FirestoreUser } from '@/types';
 import { addUser, getUser } from './firestore';

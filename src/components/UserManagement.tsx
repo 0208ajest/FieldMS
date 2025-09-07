@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Search, Plus, Eye, Edit, Trash2, Loader2, AlertTriangle } from 'lucide-react';
-import { User } from '@/types';
+import { User, FirestoreUser } from '@/types';
 import { companies, departments } from '@/components/data/userData';
 import { getUsers, addUser, updateUser, deleteUser, getCompanies, addCompany, updateCompany, deleteCompany } from '@/lib/firestore';
 
@@ -91,18 +91,18 @@ export default function UserManagement({ }: UserManagementProps) {
         
         // FirestoreUserをUser型に変換
         const convertedUsers: User[] = firestoreUsers.map((firestoreUser: Record<string, unknown>) => ({
-          id: firestoreUser.id,
-          name: firestoreUser.name || '',
-          email: firestoreUser.email || '',
-          phone: firestoreUser.phone || '',
-          systemRole: firestoreUser.systemRole || 'engineer',
-          companyId: parseInt(firestoreUser.companyId) || 1,
-          departmentId: parseInt(firestoreUser.departmentId) || 1,
+          id: firestoreUser.id as string,
+          name: firestoreUser.name as string || '',
+          email: firestoreUser.email as string || '',
+          phone: firestoreUser.phone as string || '',
+          systemRole: firestoreUser.systemRole as 'system_admin' | 'admin' | 'dispatcher' | 'engineer_manager' | 'engineer' || 'engineer',
+          companyId: parseInt(firestoreUser.companyId as string) || 1,
+          departmentId: parseInt(firestoreUser.departmentId as string) || 1,
           isActive: firestoreUser.isActive !== false,
-          avatar: firestoreUser.avatar || '',
-          bio: firestoreUser.bio || '',
-          createdAt: firestoreUser.createdAt || new Date(),
-          lastLoginAt: firestoreUser.lastLoginAt || undefined,
+          avatar: firestoreUser.avatar as string || '',
+          bio: firestoreUser.bio as string || '',
+          createdAt: firestoreUser.createdAt as Date || new Date(),
+          lastLoginAt: firestoreUser.lastLoginAt as Date || undefined,
         }));
         
         setUsersList(convertedUsers);
@@ -166,23 +166,23 @@ export default function UserManagement({ }: UserManagementProps) {
         lastLoginAt: null,
       };
 
-      await addUser(userDataWithoutId as Record<string, unknown>);
+      await addUser(userDataWithoutId as Omit<FirestoreUser, 'id'>);
       
       // 更新されたユーザー一覧を取得
       const updatedFirestoreUsers = await getUsers();
       const updatedConvertedUsers: User[] = updatedFirestoreUsers.map((firestoreUser: Record<string, unknown>) => ({
-        id: firestoreUser.id,
-        name: firestoreUser.name || '',
-        email: firestoreUser.email || '',
-        phone: firestoreUser.phone || '',
-        systemRole: firestoreUser.systemRole || 'engineer',
-        companyId: parseInt(firestoreUser.companyId) || 1,
-        departmentId: parseInt(firestoreUser.departmentId) || 1,
+        id: firestoreUser.id as string,
+        name: firestoreUser.name as string || '',
+        email: firestoreUser.email as string || '',
+        phone: firestoreUser.phone as string || '',
+        systemRole: firestoreUser.systemRole as 'system_admin' | 'admin' | 'dispatcher' | 'engineer_manager' | 'engineer' || 'engineer',
+        companyId: parseInt(firestoreUser.companyId as string) || 1,
+        departmentId: parseInt(firestoreUser.departmentId as string) || 1,
         isActive: firestoreUser.isActive !== false,
-        avatar: firestoreUser.avatar || '',
-        bio: firestoreUser.bio || '',
-        createdAt: firestoreUser.createdAt || new Date(),
-        lastLoginAt: firestoreUser.lastLoginAt || undefined,
+        avatar: firestoreUser.avatar as string || '',
+        bio: firestoreUser.bio as string || '',
+        createdAt: firestoreUser.createdAt as Date || new Date(),
+        lastLoginAt: firestoreUser.lastLoginAt as Date || undefined,
       }));
       
       setUsersList(updatedConvertedUsers);
@@ -227,7 +227,7 @@ export default function UserManagement({ }: UserManagementProps) {
     if (!companyToEdit) return;
 
     try {
-      await updateCompany(companyToEdit.id, editCompany);
+      await updateCompany(companyToEdit.id as string, editCompany);
       setCompaniesList(prev => prev.map(company => 
         company.id === companyToEdit.id ? { ...company, ...editCompany } : company
       ));
@@ -242,7 +242,7 @@ export default function UserManagement({ }: UserManagementProps) {
     if (!companyToDelete) return;
 
     try {
-      await deleteCompany(companyToDelete.id);
+      await deleteCompany(companyToDelete.id as string);
       setCompaniesList(prev => prev.filter(company => company.id !== companyToDelete.id));
       setIsDeleteCompanyConfirmOpen(false);
       setCompanyToDelete(null);
@@ -448,8 +448,8 @@ export default function UserManagement({ }: UserManagementProps) {
                         <SelectContent>
                           {companiesList.length > 0 ? (
                             companiesList.map((company) => (
-                              <SelectItem key={company.id} value={company.id.toString()}>
-                                {company.name}
+                              <SelectItem key={company.id as string} value={(company.id as string).toString()}>
+                                {company.name as string}
                               </SelectItem>
                             ))
                           ) : (
@@ -667,31 +667,31 @@ export default function UserManagement({ }: UserManagementProps) {
             ) : (
               <div className="space-y-4">
                 {companiesList.map((company) => (
-                  <div key={company.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
+                  <div key={company.id as string} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
-                        <h4 className="font-semibold">{company.name}</h4>
+                        <h4 className="font-semibold">{company.name as string}</h4>
                         <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-muted-foreground">
-                          {company.address && (
+                          {company.address && typeof company.address === 'string' ? (
                             <div>
                               <span className="font-medium">住所:</span> {company.address}
                             </div>
-                          )}
-                          {company.phone && (
+                          ) : null}
+                          {company.phone && typeof company.phone === 'string' ? (
                             <div>
                               <span className="font-medium">電話:</span> {company.phone}
                             </div>
-                          )}
-                          {company.email && (
+                          ) : null}
+                          {company.email && typeof company.email === 'string' ? (
                             <div>
                               <span className="font-medium">メール:</span> {company.email}
                             </div>
-                          )}
-                          {company.description && (
+                          ) : null}
+                          {company.description && typeof company.description === 'string' ? (
                             <div className="col-span-2">
                               <span className="font-medium">説明:</span> {company.description}
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -701,11 +701,11 @@ export default function UserManagement({ }: UserManagementProps) {
                           onClick={() => {
                             setCompanyToEdit(company);
                             setEditCompany({
-                              name: company.name,
-                              address: company.address || '',
-                              phone: company.phone || '',
-                              email: company.email || '',
-                              description: company.description || ''
+                              name: company.name as string,
+                              address: (company.address as string) || '',
+                              phone: (company.phone as string) || '',
+                              email: (company.email as string) || '',
+                              description: (company.description as string) || ''
                             });
                             setIsEditCompanyOpen(true);
                           }}
@@ -793,8 +793,8 @@ export default function UserManagement({ }: UserManagementProps) {
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
-                        <div>{getCompanyName(user.companyId)}</div>
-                        <div className="text-muted-foreground">{getDepartmentName(user.departmentId)}</div>
+                        <div>{getCompanyName(user.companyId) as string}</div>
+                        <div className="text-muted-foreground">{getDepartmentName(user.departmentId) as string}</div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -897,11 +897,11 @@ export default function UserManagement({ }: UserManagementProps) {
                 </div>
                 <div>
                   <Label className="text-sm font-medium">会社</Label>
-                  <p className="text-sm">{getCompanyName(selectedUser.companyId)}</p>
+                  <p className="text-sm">{getCompanyName(selectedUser.companyId) as string}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">部門</Label>
-                  <p className="text-sm">{getDepartmentName(selectedUser.departmentId)}</p>
+                  <p className="text-sm">{getDepartmentName(selectedUser.departmentId) as string}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium">ステータス</Label>
@@ -988,8 +988,8 @@ export default function UserManagement({ }: UserManagementProps) {
                   <SelectContent>
                     {companiesList.length > 0 ? (
                       companiesList.map((company) => (
-                        <SelectItem key={company.id} value={company.id.toString()}>
-                          {company.name}
+                        <SelectItem key={company.id as string} value={(company.id as string).toString()}>
+                          {company.name as string}
                         </SelectItem>
                       ))
                     ) : (
@@ -1175,7 +1175,7 @@ export default function UserManagement({ }: UserManagementProps) {
                 </div>
                 <p className="text-sm text-red-700">
                   <strong>この操作は取り消せません。</strong><br />
-                  会社「{companyToDelete.name}」を削除してもよろしいですか？
+                  会社「{companyToDelete.name as string}」を削除してもよろしいですか？
                 </p>
               </div>
             </div>

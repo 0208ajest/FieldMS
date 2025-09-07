@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ChevronLeft, ChevronRight, Plus, X, User, AlertTriangle } from 'lucide-react';
-import { User as UserType, Schedule } from '@/types';
+import { User as UserType, Schedule, Engineer } from '@/types';
 import { engineers } from '@/components/data/engineerData';
 import { 
   addSchedule, 
@@ -133,7 +133,7 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
     
-    const days: Array<{ date: Date; isCurrentMonth: boolean; isToday: boolean }> = [];
+    const days: Array<{ date: number; isCurrentMonth: boolean; isToday: boolean; fullDate: Date; schedules: Schedule[] }> = [];
     const current = new Date(startDate);
     
     for (let i = 0; i < 42; i++) {
@@ -148,11 +148,7 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
         isCurrentMonth: current.getMonth() === month,
         isToday: current.toDateString() === new Date().toDateString(),
         fullDate: new Date(current),
-        schedules: daySchedules.map(schedule => ({
-          ...schedule,
-          engineerName: firebaseEngineers.find(e => e.id === schedule.engineerId)?.name || '不明',
-          startTime: new Date(schedule.startDate).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
-        }))
+        schedules: daySchedules
       });
       
       current.setDate(current.getDate() + 1);
@@ -411,7 +407,7 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
     window.location.reload(); // 簡易実装
   };
 
-  const openNewScheduleDialog = (day: { date: number; isCurrentMonth: boolean; isToday: boolean; fullDate: Date; schedules: Array<{ id: number; title: string; engineerName: string; startTime: string; status: string }> }) => {
+  const openNewScheduleDialog = (day: { date: number; isCurrentMonth: boolean; isToday: boolean; fullDate: Date; schedules: Schedule[] }) => {
     setNewSchedule({
       ...newSchedule,
       startDate: day.fullDate.toISOString().split('T')[0],
@@ -782,19 +778,14 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
                             <span className="text-xs text-gray-500 ml-2">
                               {engineer.departmentId === 1 ? '技術部' : '保守部'}
                             </span>
-                            {engineer.conflictCount > 0 && (
-                              <span className="text-xs text-orange-600 ml-2">
-                                （{engineer.conflictCount}件の予定あり）
-                              </span>
-                            )}
                           </div>
                           <Badge className={
-                            engineer.availabilityStatus === 'available' ? 'bg-green-100 text-green-700' :
-                            engineer.availabilityStatus === 'busy' ? 'bg-red-100 text-red-700' :
+                            engineer.status === 'available' ? 'bg-green-100 text-green-700' :
+                            engineer.status === 'busy' ? 'bg-red-100 text-red-700' :
                             'bg-gray-100 text-gray-700'
                           }>
-                            {engineer.availabilityStatus === 'available' ? '空きあり' :
-                             engineer.availabilityStatus === 'busy' ? '稼働中' : '不明'}
+                            {engineer.status === 'available' ? '空きあり' :
+                             engineer.status === 'busy' ? '稼働中' : '不明'}
                           </Badge>
                         </div>
                       ))}
@@ -880,9 +871,9 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
                       >
                         <div className="flex items-center gap-1">
                           {engineerFilter ? (
-                            <span>{schedule.startTime} {schedule.title}</span>
+                            <span>{new Date(schedule.startDate).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} {schedule.title}</span>
                           ) : (
-                            <span>{schedule.engineerName}: {schedule.title}</span>
+                            <span>{firebaseEngineers.find(e => e.id === schedule.engineerId)?.name || '不明'}: {schedule.title}</span>
                           )}
                         </div>
                       </div>
