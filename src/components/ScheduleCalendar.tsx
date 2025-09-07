@@ -75,17 +75,17 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
         console.log('👨‍💻 取得したFirestoreエンジニア:', firestoreEngineers);
         
         const convertedEngineers = firestoreEngineers.map((firestoreEngineer: Record<string, unknown>) => ({
-          id: firestoreEngineer.id, // FirebaseのIDをそのまま使用
-          name: firestoreEngineer.name,
-          email: firestoreEngineer.email,
-          phone: firestoreEngineer.phone || '',
-          departmentId: parseInt(firestoreEngineer.companyId) || 1,
-          skills: firestoreEngineer.skills,
-          status: firestoreEngineer.status,
+          id: firestoreEngineer.id as string, // FirebaseのIDをそのまま使用
+          name: firestoreEngineer.name as string,
+          email: firestoreEngineer.email as string,
+          phone: (firestoreEngineer.phone as string) || '',
+          departmentId: parseInt(firestoreEngineer.companyId as string) || 1,
+          skills: firestoreEngineer.skills as string[],
+          status: firestoreEngineer.status as 'active' | 'inactive',
           totalProjects: 0, // 後で計算
           completedProjects: 0, // 後で計算
-          createdAt: firestoreEngineer.createdAt,
-          updatedAt: firestoreEngineer.updatedAt,
+          createdAt: firestoreEngineer.createdAt as Date,
+          updatedAt: firestoreEngineer.updatedAt as Date,
         }));
         setFirebaseEngineers(convertedEngineers);
         
