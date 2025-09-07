@@ -2,7 +2,7 @@ import { Engineer, Schedule, WorkOrder } from '@/types';
 
 export const engineers: Engineer[] = [
   {
-    id: 101,
+    id: '101',
     name: '田中 太郎',
     email: 'tanaka@example.com',
     phone: '090-1234-5678',
@@ -11,7 +11,7 @@ export const engineers: Engineer[] = [
     departmentId: 2,
   },
   {
-    id: 102,
+    id: '102',
     name: '山田 花子',
     email: 'yamada@example.com',
     phone: '090-2222-3333',
@@ -21,7 +21,7 @@ export const engineers: Engineer[] = [
     currentTask: { title: 'VPN更改', location: '横浜' },
   },
   {
-    id: 103,
+    id: '103',
     name: '佐藤 次郎',
     email: 'sato@example.com',
     phone: '090-3333-4444',
@@ -30,7 +30,7 @@ export const engineers: Engineer[] = [
     departmentId: 1,
   },
   {
-    id: 104,
+    id: '104',
     name: '鈴木 三郎',
     email: 'suzuki@example.com',
     phone: '090-4444-5555',
@@ -39,7 +39,7 @@ export const engineers: Engineer[] = [
     departmentId: 1,
   },
   {
-    id: 105,
+    id: '105',
     name: '高橋 四郎',
     email: 'takahashi@example.com',
     phone: '090-5555-6666',
@@ -52,7 +52,7 @@ export const engineers: Engineer[] = [
 export const schedules: Schedule[] = [
   {
     id: 1001,
-    engineerId: 101,
+    engineerId: '101',
     title: 'サーバー保守',
     description: '定期メンテナンス',
     startDate: new Date().toISOString(),
@@ -62,7 +62,7 @@ export const schedules: Schedule[] = [
   },
   {
     id: 1002,
-    engineerId: 102,
+    engineerId: '102',
     title: 'VPN更改',
     description: 'VPN機器の更新作業',
     startDate: new Date(Date.now() + 1 * 60 * 60 * 1000).toISOString(),
@@ -72,7 +72,7 @@ export const schedules: Schedule[] = [
   },
   {
     id: 1003,
-    engineerId: 103,
+    engineerId: '103',
     title: 'DB最適化',
     description: 'データベースのパフォーマンス改善',
     startDate: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),

@@ -68,7 +68,7 @@ export default function Dashboard({ onNavigateToDispatch, currentUser }: Dashboa
           estimatedDuration: firestoreWorkOrder.estimatedDuration,
           actualDuration: firestoreWorkOrder.actualDuration,
           createdAt: firestoreWorkOrder.createdAt,
-          updatedAt: firestoreWorkOrder.updatedAt,
+          completedAt: firestoreWorkOrder.completedAt,
           dueDate: firestoreWorkOrder.dueDate,
           firebaseId: firestoreWorkOrder.id
         }));
@@ -116,7 +116,7 @@ export default function Dashboard({ onNavigateToDispatch, currentUser }: Dashboa
 
   // 過去7日間のスケジュールデータ
   const scheduleData = (() => {
-    const data: Array<{ date: string; scheduled: number }> = [];
+    const data: Array<{ date: string; scheduled: number; completed: number }> = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
@@ -151,16 +151,18 @@ export default function Dashboard({ onNavigateToDispatch, currentUser }: Dashboa
       title: string;
       time: string;
       description: string;
+      icon?: React.ComponentType<{ className?: string }>;
+      color?: string;
     }> = [];
     
     // 最近の作業指示完了
     const recentCompletedWorkOrders = workOrders
       .filter(w => w.status === 'completed')
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .sort((a, b) => new Date(b.completedAt || b.createdAt).getTime() - new Date(a.completedAt || a.createdAt).getTime())
       .slice(0, 3);
     
     recentCompletedWorkOrders.forEach(workOrder => {
-      const timeDiff = Date.now() - new Date(workOrder.updatedAt).getTime();
+      const timeDiff = Date.now() - new Date(workOrder.completedAt || workOrder.createdAt).getTime();
       const minutes = Math.floor(timeDiff / (1000 * 60));
       const timeStr = minutes < 60 ? `${minutes}分前` : `${Math.floor(minutes / 60)}時間前`;
       
@@ -177,11 +179,11 @@ export default function Dashboard({ onNavigateToDispatch, currentUser }: Dashboa
 
     // 最近のスケジュール作成
     const recentSchedules = schedules
-      .sort((a, b) => new Date(b.createdAt || new Date()).getTime() - new Date(a.createdAt || new Date()).getTime())
+      .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())
       .slice(0, 2);
     
     recentSchedules.forEach(schedule => {
-      const timeDiff = Date.now() - new Date(schedule.createdAt || new Date()).getTime();
+      const timeDiff = Date.now() - new Date(schedule.startDate).getTime();
       const minutes = Math.floor(timeDiff / (1000 * 60));
       const timeStr = minutes < 60 ? `${minutes}分前` : `${Math.floor(minutes / 60)}時間前`;
       
@@ -446,7 +448,7 @@ export default function Dashboard({ onNavigateToDispatch, currentUser }: Dashboa
                     return (
                       <div key={activity.id} className="flex items-start gap-3 p-3 border rounded-lg">
                         <div className={`w-8 h-8 bg-${activity.color}-100 rounded-full flex items-center justify-center flex-shrink-0`}>
-                          <IconComponent className={`w-4 h-4 text-${activity.color}-600`} />
+                          {IconComponent && <IconComponent className={`w-4 h-4 text-${activity.color}-600`} />}
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium">{activity.title}</p>

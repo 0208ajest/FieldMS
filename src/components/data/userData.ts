@@ -11,7 +11,7 @@ export const departments: Department[] = [
 
 export const users: User[] = [
   {
-    id: 1,
+    id: '1',
     email: 'admin@fieldms.com',
     name: 'システム管理者',
     systemRole: 'system_admin',
@@ -22,7 +22,7 @@ export const users: User[] = [
     createdAt: new Date('2024-01-01'),
   },
   {
-    id: 2,
+    id: '2',
     email: 'manager@fieldms.com',
     name: '管理者',
     systemRole: 'admin',
@@ -33,7 +33,7 @@ export const users: User[] = [
     createdAt: new Date('2024-01-01'),
   },
   {
-    id: 3,
+    id: '3',
     email: 'dispatcher@fieldms.com',
     name: 'ディスパッチャー',
     systemRole: 'dispatcher',
@@ -44,7 +44,7 @@ export const users: User[] = [
     createdAt: new Date('2024-01-01'),
   },
   {
-    id: 4,
+    id: '4',
     email: 'engineer.manager@fieldms.com',
     name: 'エンジニア管理',
     systemRole: 'engineer_manager',
@@ -55,7 +55,7 @@ export const users: User[] = [
     createdAt: new Date('2024-01-01'),
   },
   {
-    id: 5,
+    id: '5',
     email: 'engineer@fieldms.com',
     name: 'エンジニア田中',
     systemRole: 'engineer',
