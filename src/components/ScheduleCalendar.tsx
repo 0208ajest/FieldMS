@@ -906,11 +906,11 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
               <div className="p-4 text-center text-sm font-medium border-r">
                 エンジニア
               </div>
-              {generateWeekData().map((date, index) => (
+              {generateWeekData().map((dayData, index) => (
                 <div key={index} className="p-4 text-center text-sm font-medium border-r last:border-r-0">
-                  <div>{date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}</div>
+                  <div>{dayData.date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' })}</div>
                   <div className="text-xs text-muted-foreground">
-                    {date.toLocaleDateString('ja-JP', { weekday: 'short' })}
+                    {dayData.dayName}
                   </div>
                 </div>
               ))}
@@ -923,7 +923,7 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
                     <div className="font-medium text-sm">{engineer.name}</div>
                     <div className="text-xs text-muted-foreground">{engineer.departmentId === 1 ? '技術部' : '保守部'}</div>
                   </div>
-                  {generateWeekData().map((date, dateIndex) => (
+                  {generateWeekData().map((dayData, dateIndex) => (
                     <div 
                       key={dateIndex} 
                       className="p-2 border-r border-b last:border-r-0 min-h-20 cursor-pointer hover:bg-muted/30"
@@ -931,7 +931,7 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
                         // その日のスケジュールを取得
                         const daySchedules = schedulesList.filter(schedule => {
                           const scheduleDate = new Date(schedule.startDate);
-                          return scheduleDate.toDateString() === date.toDateString() && schedule.engineerId === engineer.id;
+                          return scheduleDate.toDateString() === dayData.date.toDateString() && schedule.engineerId === engineer.id;
                         });
                         
                         if (daySchedules.length > 0) {
@@ -940,16 +940,16 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
                         } else {
                           // 予定がない場合は新規登録
                           openNewScheduleDialog({
-                            date: date.getDate(),
+                            date: dayData.date.getDate(),
                             isCurrentMonth: true,
-                            isToday: date.toDateString() === new Date().toDateString(),
-                            fullDate: date,
+                            isToday: dayData.isToday,
+                            fullDate: dayData.date,
                             schedules: []
                           });
                         }
                       }}
                     >
-                      {getSchedulesForDate(date).filter(schedule => schedule.engineerId === engineer.id).map((schedule) => (
+                      {getSchedulesForDate(dayData.date).filter(schedule => schedule.engineerId === engineer.id).map((schedule) => (
                         <div 
                           key={schedule.id}
                           className={`text-xs p-1 rounded mb-1 cursor-pointer hover:opacity-80 ${
