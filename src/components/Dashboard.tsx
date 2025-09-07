@@ -116,7 +116,7 @@ export default function Dashboard({ onNavigateToDispatch, currentUser }: Dashboa
 
   // 過去7日間のスケジュールデータ
   const scheduleData = (() => {
-    const data = [];
+    const data: Array<{ date: string; scheduled: number }> = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
@@ -145,7 +145,13 @@ export default function Dashboard({ onNavigateToDispatch, currentUser }: Dashboa
 
   // 最近のアクティビティ
   const allActivities = (() => {
-    const activities = [];
+    const activities: Array<{
+      id: string;
+      type: string;
+      title: string;
+      time: string;
+      description: string;
+    }> = [];
     
     // 最近の作業指示完了
     const recentCompletedWorkOrders = workOrders

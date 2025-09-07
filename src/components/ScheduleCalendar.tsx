@@ -133,7 +133,7 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
     
-    const days = [];
+    const days: Array<{ date: Date; isCurrentMonth: boolean; isToday: boolean }> = [];
     const current = new Date(startDate);
     
     for (let i = 0; i < 42; i++) {
@@ -273,11 +273,13 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
     const day = startOfWeek.getDay();
     startOfWeek.setDate(startOfWeek.getDate() - day);
     
-    const weekDays = [];
+    const weekDays: Array<{ date: Date; dayName: string; isToday: boolean }> = [];
     for (let i = 0; i < 7; i++) {
       const date = new Date(startOfWeek);
       date.setDate(startOfWeek.getDate() + i);
-      weekDays.push(date);
+      const dayName = ['日', '月', '火', '水', '木', '金', '土'][i];
+      const isToday = date.toDateString() === new Date().toDateString();
+      weekDays.push({ date, dayName, isToday });
     }
     
     return weekDays;
@@ -285,7 +287,7 @@ export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarPro
 
   // 日間表示用のデータ生成（24時間）
   const generateDayData = () => {
-    const hours = [];
+    const hours: number[] = [];
     for (let i = 0; i < 24; i++) {
       hours.push(i);
     }
