@@ -8,7 +8,7 @@ import {
   deleteEngineer,
   calculateEngineerProjectCounts
 } from '@/lib/firestore';
-import { FirestoreEngineer, User } from '@/types';
+import { User } from '@/types';
 import { 
   Loader2,
   AlertCircle,
