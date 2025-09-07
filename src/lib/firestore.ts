@@ -278,9 +278,9 @@ export const getSchedulesByEngineer = async (engineerId: string) => {
 };
 
 // 企業操作
-export const getCompany = async (companyId: string) => {
+export const getCompany = async (companyId: string): Promise<{ id: string; name: string; [key: string]: unknown } | null> => {
   const companyDoc = await getDoc(doc(companiesCollection, companyId));
-  return companyDoc.exists() ? { id: companyDoc.id, ...companyDoc.data() } : null;
+  return companyDoc.exists() ? { id: companyDoc.id, ...companyDoc.data() } as { id: string; name: string; [key: string]: unknown } : null;
 };
 
 export const getCompanies = async () => {
