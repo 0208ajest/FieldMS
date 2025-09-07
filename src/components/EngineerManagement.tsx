@@ -1,210 +1,214 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Card } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { 
+  addEngineer, 
+  getEngineers, 
+  updateEngineer, 
+  deleteEngineer,
+  calculateEngineerProjectCounts
+} from '@/lib/firestore';
+import { FirestoreEngineer, User } from '@/types';
+import { 
+  Loader2,
+  AlertCircle,
+  Plus,
+  Edit,
+  Trash2,
+  Eye
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Search, Download, Upload, Plus, Eye, Edit, Calendar, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
-import { User, Engineer } from '@/types';
-import { engineers } from '@/components/data/engineerData';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+
+interface Engineer {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  department: string;
+  skills: string[];
+  status: 'active' | 'inactive' | 'on_leave';
+  companyId: number;
+  totalProjects: number; // 割り当てられている案件数
+  completedProjects: number; // 対応完了した案件数
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 interface EngineerManagementProps {
   currentUser: User;
-  onNavigateToSchedule: (engineerId?: number) => void;
 }
 
-export default function EngineerManagement({ currentUser: _currentUser, onNavigateToSchedule }: EngineerManagementProps) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+export default function EngineerManagement({ currentUser }: EngineerManagementProps) {
+  const [engineers, setEngineers] = useState<Engineer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // ソート機能
+  const [sortField, setSortField] = useState<'name' | 'totalProjects' | 'completedProjects' | 'status'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // 新規エンジニア追加
   const [isAddEngineerOpen, setIsAddEngineerOpen] = useState(false);
-  const [isViewEngineerOpen, setIsViewEngineerOpen] = useState(false);
-  const [isEditEngineerOpen, setIsEditEngineerOpen] = useState(false);
-  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-  const [selectedEngineer, setSelectedEngineer] = useState<Engineer | null>(null);
-  const [engineerToDelete, setEngineerToDelete] = useState<Engineer | null>(null);
-  const [engineersList, setEngineersList] = useState(engineers);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [newEngineer, setNewEngineer] = useState({
     name: '',
     email: '',
     phone: '',
-    departmentId: 1,
+    department: '',
     skills: [] as string[],
-    status: 'available',
-    avatar: '',
-    currentTask: '',
-    progress: 0
+    status: 'active' as 'active' | 'inactive' | 'on_leave',
+    companyId: 1
   });
-
+  
+  // エンジニア詳細表示
+  const [isViewEngineerOpen, setIsViewEngineerOpen] = useState(false);
+  const [selectedEngineer, setSelectedEngineer] = useState<Engineer | null>(null);
+  
+  // エンジニア編集
+  const [isEditEngineerOpen, setIsEditEngineerOpen] = useState(false);
+  const [engineerToEdit, setEngineerToEdit] = useState<Engineer | null>(null);
   const [editEngineer, setEditEngineer] = useState({
     name: '',
     email: '',
     phone: '',
-    departmentId: 1,
+    department: '',
     skills: [] as string[],
-    status: 'available',
-    avatar: '',
-    currentTask: '',
-    progress: 0
+    status: 'active' as 'active' | 'inactive' | 'on_leave',
+    companyId: 1
   });
+  
+  // 削除確認
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [engineerToDelete, setEngineerToDelete] = useState<Engineer | null>(null);
 
-  // フィルタリングされたエンジニアリスト
-  const filteredEngineers = engineersList.filter(engineer => {
-    const matchesSearch = engineer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         engineer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         engineer.skills.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    const matchesDepartment = departmentFilter === 'all' || engineer.departmentId.toString() === departmentFilter;
-    const matchesStatus = statusFilter === 'all' || engineer.status === statusFilter;
-    
-    return matchesSearch && matchesDepartment && matchesStatus;
-  });
+  // エンジニア一覧を取得
+  useEffect(() => {
+    const fetchEngineers = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const firestoreEngineers = await getEngineers();
+        console.log('📋 Firestoreから取得したエンジニアデータ:', firestoreEngineers);
+        console.log('🔍 各エンジニアのID詳細:', firestoreEngineers.map(e => ({ id: e.id, name: e.name, idType: typeof e.id })));
+        console.log('🔍 Firestoreエンジニア数:', firestoreEngineers.length);
+        console.log('🔍 各エンジニアの完全なデータ:', firestoreEngineers);
+        console.log('🔍 各エンジニアのドキュメントID:', firestoreEngineers.map(e => ({ id: e.id, name: e.name, hasId: !!e.id })));
+        
+        // 各エンジニアの案件数を動的計算
+        const engineersWithProjectCounts = await Promise.all(
+          firestoreEngineers.map(async (firestoreEngineer) => {
+            const projectCounts = await calculateEngineerProjectCounts(firestoreEngineer.id);
+            
+            return {
+              id: firestoreEngineer.id, // Firestoreの実際のドキュメントIDを保持
+              name: firestoreEngineer.name,
+              email: firestoreEngineer.email,
+              phone: firestoreEngineer.phone || '',
+              department: firestoreEngineer.department,
+              skills: firestoreEngineer.skills,
+              status: firestoreEngineer.status,
+              companyId: parseInt(firestoreEngineer.companyId) || 1,
+              totalProjects: projectCounts.totalProjects,
+              completedProjects: projectCounts.completedProjects,
+              createdAt: firestoreEngineer.createdAt,
+              updatedAt: firestoreEngineer.updatedAt,
+            };
+          })
+        );
+        
+        console.log('🔄 変換後のエンジニアデータ（案件数計算済み）:', engineersWithProjectCounts);
+        setEngineers(engineersWithProjectCounts);
+      } catch (err) {
+        console.error('❌ エンジニア一覧取得エラー:', err);
+        setError(`エンジニア一覧の取得に失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  // CSV出力機能
-  const handleCSVExport = () => {
-    const csvContent = [
-      ['名前', 'メール', '電話', '部門', 'スキル', 'ステータス'].join(','),
-      ...filteredEngineers.map(engineer => [
-        engineer.name,
-        engineer.email,
-        engineer.phone,
-        engineer.departmentId === 1 ? '技術部' : '保守部',
-        engineer.skills.join(';'),
-        engineer.status
-      ].join(','))
-    ].join('\n');
+    fetchEngineers();
+  }, []);
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `engineers_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // CSV取込機能
-  const handleCSVImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const lines = text.split('\n');
+  // 新規エンジニア追加
+  const handleAddEngineer = async () => {
+    try {
+      setLoading(true);
       
-      const importedEngineers: Engineer[] = lines.slice(1).map((line, index) => {
-        const values = line.split(',');
-        return {
-          id: engineersList.length + index + 1,
-          name: values[0] || '',
-          email: values[1] || '',
-          phone: values[2] || '',
-          departmentId: values[3] === '技術部' ? 1 : 2,
-          skills: values[4] ? values[4].split(';') : [],
-          status: (values[5] || 'available') as 'active' | 'available' | 'busy' | 'inactive' | 'on_leave',
-          avatar: '',
-          currentTask: undefined,
-          progress: 0
-        };
-      }).filter(engineer => engineer.name);
-
-      setEngineersList([...engineersList, ...importedEngineers]);
-    };
-    reader.readAsText(file);
-  };
-
-  // エンジニア追加
-  const handleAddEngineer = () => {
-    const engineer: Engineer = {
-      id: engineersList.length + 1,
-      name: newEngineer.name,
-      email: newEngineer.email,
-      phone: newEngineer.phone,
-      departmentId: newEngineer.departmentId,
-      skills: newEngineer.skills,
-      status: newEngineer.status as 'active' | 'available' | 'busy' | 'inactive' | 'on_leave',
-      avatar: newEngineer.avatar,
-      currentTask: newEngineer.currentTask ? { title: newEngineer.currentTask, location: '' } : undefined,
-      progress: newEngineer.progress
-    };
-    setEngineersList([...engineersList, engineer]);
-    setIsAddEngineerOpen(false);
-    setNewEngineer({
-      name: '',
-      email: '',
-      phone: '',
-      departmentId: 1,
-      skills: [],
-      status: 'available',
-      avatar: '',
-      currentTask: '',
-      progress: 0
-    });
-  };
-
-  // エンジニア編集
-  const handleEditEngineer = (engineer: Engineer) => {
-    setSelectedEngineer(engineer);
-    setEditEngineer({
-      name: engineer.name,
-      email: engineer.email,
-      phone: engineer.phone,
-      departmentId: engineer.departmentId,
-      skills: engineer.skills,
-      status: engineer.status,
-      avatar: engineer.avatar || '',
-      currentTask: engineer.currentTask?.title || '',
-      progress: engineer.progress || 0
-    });
-    setIsEditEngineerOpen(true);
-  };
-
-  // エンジニア更新
-  const handleUpdateEngineer = () => {
-    if (selectedEngineer) {
-      const updatedEngineer: Engineer = {
-        ...selectedEngineer,
-        name: editEngineer.name,
-        email: editEngineer.email,
-        phone: editEngineer.phone,
-        departmentId: editEngineer.departmentId,
-        skills: editEngineer.skills,
-        status: editEngineer.status as 'active' | 'available' | 'busy' | 'inactive' | 'on_leave',
-        avatar: editEngineer.avatar,
-        currentTask: editEngineer.currentTask ? { title: editEngineer.currentTask, location: '' } : undefined,
-        progress: editEngineer.progress
+      // エラーメッセージをクリア
+      setError(null);
+      
+      // 必須フィールドの検証
+      if (!newEngineer.name || !newEngineer.email || !newEngineer.department) {
+        setError('名前、メールアドレス、部署は必須項目です。');
+        return;
+      }
+      
+      // まずFirestoreにエンジニアを追加（idフィールドなし）
+      const engineerDataWithoutId = {
+        name: newEngineer.name,
+        email: newEngineer.email,
+        phone: newEngineer.phone,
+        department: newEngineer.department,
+        skills: newEngineer.skills,
+        status: newEngineer.status || 'active', // デフォルト値を設定
+        companyId: newEngineer.companyId.toString(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
+      
+      console.log('📝 新規エンジニア追加データ:', {
+        engineerData: engineerDataWithoutId,
+        newEngineerStatus: newEngineer.status,
+        newEngineerObject: newEngineer
+      });
 
-      setEngineersList(engineersList.map(e => e.id === selectedEngineer.id ? updatedEngineer : e));
-      setIsEditEngineerOpen(false);
-      setSelectedEngineer(null);
-    }
-  };
-
-  // エンジニア削除確認
-  const handleDeleteEngineer = (engineer: Engineer) => {
-    setEngineerToDelete(engineer);
-    setIsDeleteConfirmOpen(true);
-  };
-
-  // エンジニア削除実行
-  const confirmDeleteEngineer = () => {
-    if (engineerToDelete) {
-      setEngineersList(engineersList.filter(e => e.id !== engineerToDelete.id));
-      setIsDeleteConfirmOpen(false);
-      setEngineerToDelete(null);
+      // Firestoreにエンジニアを追加してドキュメントIDを取得
+      const newEngineerId = await addEngineer(engineerDataWithoutId as any);
+      console.log('✅ 新しいエンジニアが追加されました, ID:', newEngineerId);
+      
+      // 取得したIDでFirestoreEngineerオブジェクトを作成
+      const firestoreEngineer: FirestoreEngineer = {
+        id: newEngineerId,
+        ...engineerDataWithoutId
+      };
+      
+      // 更新されたエンジニア一覧を取得してローカル状態を更新
+      const updatedFirestoreEngineers = await getEngineers();
+      const updatedConvertedEngineers: Engineer[] = updatedFirestoreEngineers.map((firestoreEngineer, index) => ({
+        id: firestoreEngineer.id, // Firestoreの実際のドキュメントIDを保持
+        name: firestoreEngineer.name,
+        email: firestoreEngineer.email,
+        phone: firestoreEngineer.phone || '',
+        department: firestoreEngineer.department,
+        skills: firestoreEngineer.skills,
+        status: firestoreEngineer.status,
+        companyId: parseInt(firestoreEngineer.companyId) || 1,
+        createdAt: firestoreEngineer.createdAt,
+        updatedAt: firestoreEngineer.updatedAt,
+      }));
+      
+      setEngineers(updatedConvertedEngineers);
+      setIsAddEngineerOpen(false);
+      setNewEngineer({
+        name: '',
+        email: '',
+        phone: '',
+        department: '',
+        skills: [],
+        status: 'active',
+        companyId: 1
+      });
+    } catch (err) {
+      console.error('❌ エンジニア追加エラー:', err);
+      setError(`エンジニアの追加に失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -214,257 +218,327 @@ export default function EngineerManagement({ currentUser: _currentUser, onNaviga
     setIsViewEngineerOpen(true);
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusMap = {
-      active: { label: '稼働中', className: 'bg-green-100 text-green-700 border-green-200' },
-      available: { label: '待機', className: 'bg-blue-100 text-blue-700 border-blue-200' },
-      busy: { label: '作業中', className: 'bg-orange-100 text-orange-700 border-orange-200' },
-      inactive: { label: '非稼働', className: 'bg-gray-100 text-gray-700 border-gray-200' },
-      on_leave: { label: '休暇中', className: 'bg-purple-100 text-purple-700 border-purple-200' },
-    };
-    
-    const statusInfo = statusMap[status as keyof typeof statusMap] || statusMap.inactive;
-    return <Badge className={statusInfo.className}>{statusInfo.label}</Badge>;
+  // エンジニア削除の開始
+  const handleDeleteClick = (engineer: Engineer) => {
+    setEngineerToDelete(engineer);
+    setIsDeleteConfirmOpen(true);
   };
+
+  // エンジニア削除の実行
+  const handleDeleteEngineer = async () => {
+    if (!engineerToDelete) return;
+    
+    try {
+      setLoading(true);
+      
+      console.log('🗑️ エンジニア削除開始:', {
+        engineerId: engineerToDelete.id,
+        engineerName: engineerToDelete.name,
+        engineerIdType: typeof engineerToDelete.id,
+        engineerObject: engineerToDelete
+      });
+      
+      // Firestoreからエンジニアを削除
+      await deleteEngineer(engineerToDelete.id);
+      console.log('✅ Firestoreからエンジニアを削除しました');
+      
+      // ローカル状態を更新
+      setEngineers(engineers.filter(e => e.id !== engineerToDelete.id));
+      console.log('✅ ローカル状態を更新しました');
+      
+      // ダイアログを閉じる
+      setIsDeleteConfirmOpen(false);
+      setEngineerToDelete(null);
+    } catch (err) {
+      console.error('❌ エンジニア削除エラー:', err);
+      console.error('削除エラーの詳細:', {
+        error: err,
+        engineerId: engineerToDelete.id,
+        engineerName: engineerToDelete.name,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        errorStack: err instanceof Error ? err.stack : undefined
+      });
+      setError(`エンジニアの削除に失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 削除をキャンセル
+  const handleDeleteCancel = () => {
+    setIsDeleteConfirmOpen(false);
+    setEngineerToDelete(null);
+  };
+
+  // エンジニア編集の開始
+  const handleEditEngineer = (engineer: Engineer) => {
+    console.log('📝 編集対象エンジニア:', { engineer, engineerId: engineer.id, engineerIdType: typeof engineer.id });
+    setEngineerToEdit(engineer);
+    setEditEngineer({
+      name: engineer.name,
+      email: engineer.email,
+      phone: engineer.phone || '',
+      department: engineer.department,
+      skills: engineer.skills,
+      status: engineer.status,
+      companyId: engineer.companyId
+    });
+    setIsEditEngineerOpen(true);
+  };
+
+  // エンジニア編集の実行
+  const handleUpdateEngineer = async () => {
+    if (!engineerToEdit) return;
+    
+    try {
+      setLoading(true);
+      
+      // エラーメッセージをクリア
+      setError(null);
+      
+      // 必須フィールドの検証
+      if (!editEngineer.name || !editEngineer.email || !editEngineer.department) {
+        setError('名前、メールアドレス、部署は必須項目です。');
+        return;
+      }
+      
+      console.log('🔄 エンジニア更新開始:', {
+        engineerId: engineerToEdit.id,
+        engineerData: editEngineer
+      });
+      
+      // Firestoreの接続状態を確認
+      console.log('🔍 Firestore接続確認:', {
+        updateEngineerFunction: typeof updateEngineer,
+        engineerId: engineerToEdit.id,
+        engineerIdType: typeof engineerToEdit.id
+      });
+      
+      // 更新データを準備（idフィールドは除外）
+      const updateData = {
+        name: editEngineer.name,
+        email: editEngineer.email,
+        phone: editEngineer.phone,
+        department: editEngineer.department,
+        skills: editEngineer.skills,
+        status: editEngineer.status || 'active', // デフォルト値を設定
+        companyId: editEngineer.companyId.toString(),
+        updatedAt: new Date()
+      };
+      
+      console.log('📝 更新データ詳細:', {
+        engineerId: engineerToEdit.id,
+        updateData: updateData,
+        documentPath: `engineers/${engineerToEdit.id}`,
+        editEngineerStatus: editEngineer.status,
+        editEngineerObject: editEngineer
+      });
+      
+      // Firestoreでエンジニアを更新
+      await updateEngineer(engineerToEdit.id, updateData);
+      
+      console.log('✅ エンジニア更新成功');
+      
+      // ローカル状態を更新
+      setEngineers(engineers.map(e => 
+        e.id === engineerToEdit.id 
+          ? { ...e, ...editEngineer, updatedAt: new Date() }
+          : e
+      ));
+      
+      // ダイアログを閉じる
+      setIsEditEngineerOpen(false);
+      setEngineerToEdit(null);
+    } catch (err) {
+      console.error('❌ エンジニア更新エラー:', err);
+      console.error('更新エラーの詳細:', {
+        error: err,
+        engineerId: engineerToEdit.id,
+        engineerName: engineerToEdit.name,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        errorStack: err instanceof Error ? err.stack : undefined
+      });
+      setError(`エンジニアの更新に失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 編集をキャンセル
+  const handleEditCancel = () => {
+    setIsEditEngineerOpen(false);
+    setEngineerToEdit(null);
+  };
+
+  // スキル文字列を配列に変換
+  const parseSkills = (skillsString: string): string[] => {
+    return skillsString.split(',').map(skill => skill.trim()).filter(skill => skill.length > 0);
+  };
+
+  // 配列をスキル文字列に変換
+  const skillsToString = (skills: string[]): string => {
+    return skills.join(', ');
+  };
+
+  // ソート機能
+  const handleSort = (field: 'name' | 'totalProjects' | 'completedProjects' | 'status') => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // ソートされたエンジニア一覧を取得
+  const sortedEngineers = [...engineers].sort((a, b) => {
+    let aValue: any = a[sortField];
+    let bValue: any = b[sortField];
+
+    if (sortField === 'name') {
+      aValue = aValue.toLowerCase();
+      bValue = bValue.toLowerCase();
+    }
+
+    if (sortDirection === 'asc') {
+      return aValue > bValue ? 1 : -1;
+    } else {
+      return aValue < bValue ? 1 : -1;
+    }
+  });
+
+  if (loading && engineers.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">エンジニア一覧を読み込み中...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* ページヘッダー + アクション */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* ヘッダー */}
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold">エンジニア管理</h1>
-          <p className="text-muted-foreground">エンジニアの登録・編集・スケジュール管理</p>
+          <h1 className="text-2xl font-bold text-gray-900">エンジニア管理</h1>
+          <p className="text-gray-600">エンジニアの情報を管理します</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleCSVExport}>
-            <Download className="w-4 h-4 mr-2" />
-            CSV出力
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="w-4 h-4 mr-2" />
-            CSV取込
-          </Button>
-          <Dialog open={isAddEngineerOpen} onOpenChange={setIsAddEngineerOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="w-4 h-4 mr-2" />
-                エンジニア追加
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>エンジニア追加</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">名前</Label>
-                    <Input
-                      id="name"
-                      value={newEngineer.name}
-                      onChange={(e) => setNewEngineer({...newEngineer, name: e.target.value})}
-                      placeholder="エンジニア名"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">メール</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={newEngineer.email}
-                      onChange={(e) => setNewEngineer({...newEngineer, email: e.target.value})}
-                      placeholder="email@example.com"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="phone">電話番号</Label>
-                    <Input
-                      id="phone"
-                      value={newEngineer.phone}
-                      onChange={(e) => setNewEngineer({...newEngineer, phone: e.target.value})}
-                      placeholder="090-1234-5678"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="department">部門</Label>
-                    <Select value={newEngineer.departmentId.toString()} onValueChange={(value) => setNewEngineer({...newEngineer, departmentId: parseInt(value)})}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">技術部</SelectItem>
-                        <SelectItem value="2">保守部</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="skills">スキル</Label>
-                  <Input
-                    id="skills"
-                    value={newEngineer.skills.join(', ')}
-                    onChange={(e) => setNewEngineer({...newEngineer, skills: e.target.value.split(',').map(s => s.trim()).filter(s => s)})}
-                    placeholder="JavaScript, React, Node.js"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="status">ステータス</Label>
-                  <Select value={newEngineer.status} onValueChange={(value) => setNewEngineer({...newEngineer, status: value})}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="available">待機</SelectItem>
-                      <SelectItem value="active">稼働中</SelectItem>
-                      <SelectItem value="busy">作業中</SelectItem>
-                      <SelectItem value="inactive">非稼働</SelectItem>
-                      <SelectItem value="on_leave">休暇中</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsAddEngineerOpen(false)}>
-                  キャンセル
-                </Button>
-                <Button onClick={handleAddEngineer}>
-                  追加
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+        <Button onClick={() => setIsAddEngineerOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          エンジニア追加
+        </Button>
       </div>
 
-      {/* フィルター・検索バー */}
-      <Card className="p-4">
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* 検索入力 */}
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
-              <Input 
-                placeholder="名前、メール、スキルで検索..." 
-                className="pl-10"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+      {/* エラーメッセージ */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="flex">
+            <AlertCircle className="h-5 w-5 text-red-400" />
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">エラー</h3>
+              <div className="mt-2 text-sm text-red-700">{error}</div>
             </div>
           </div>
-          
-          {/* 部門フィルター */}
-          <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="部門を選択" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべての部門</SelectItem>
-              <SelectItem value="1">技術部</SelectItem>
-              <SelectItem value="2">保守部</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* ステータスフィルター */}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-32">
-              <SelectValue placeholder="ステータス" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">すべて</SelectItem>
-              <SelectItem value="active">稼働中</SelectItem>
-              <SelectItem value="available">待機</SelectItem>
-              <SelectItem value="busy">作業中</SelectItem>
-              <SelectItem value="inactive">非稼働</SelectItem>
-              <SelectItem value="on_leave">休暇中</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
-      </Card>
+      )}
 
-      {/* エンジニアテーブル */}
-      <Card>
+      {/* エンジニア一覧テーブル */}
+      <div className="bg-white shadow rounded-lg">
         <Table>
           <TableHeader>
-            <TableRow className="border-b">
-              <TableHead className="w-12">
-                <Checkbox />
+            <TableRow>
+              <TableHead 
+                className="cursor-pointer hover:bg-gray-50 select-none"
+                onClick={() => handleSort('name')}
+              >
+                名前 {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
               </TableHead>
-              <TableHead className="w-64">エンジニア</TableHead>
-              <TableHead className="w-48">連絡先</TableHead>
-              <TableHead className="w-32">部門</TableHead>
-              <TableHead className="w-64">スキル</TableHead>
-              <TableHead className="w-24">ステータス</TableHead>
-              <TableHead className="w-32 text-right">アクション</TableHead>
+              <TableHead>メールアドレス</TableHead>
+              <TableHead>電話番号</TableHead>
+              <TableHead>部署</TableHead>
+              <TableHead>スキル</TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-gray-50 select-none"
+                onClick={() => handleSort('status')}
+              >
+                ステータス {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-gray-50 select-none"
+                onClick={() => handleSort('totalProjects')}
+              >
+                案件数 {sortField === 'totalProjects' && (sortDirection === 'asc' ? '↑' : '↓')}
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:bg-gray-50 select-none"
+                onClick={() => handleSort('completedProjects')}
+              >
+                完了数 {sortField === 'completedProjects' && (sortDirection === 'asc' ? '↑' : '↓')}
+              </TableHead>
+              <TableHead>操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredEngineers.map((engineer) => (
-              <TableRow key={engineer.id} className="hover:bg-muted/50">
-                <TableCell>
-                  <Checkbox />
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-3">
-                    {/* アバター */}
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={engineer.avatar} />
-                      <AvatarFallback className="bg-primary text-primary-foreground">
-                        {engineer.name[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{engineer.name}</p>
-                      <p className="text-xs text-muted-foreground">ID: ENG{engineer.id.toString().padStart(3, '0')}</p>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div>
-                    <p className="text-sm">{engineer.email}</p>
-                    <p className="text-xs text-muted-foreground">{engineer.phone}</p>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">
-                    {engineer.departmentId === 1 ? '技術部' : '保守部'}
-                  </Badge>
-                </TableCell>
+            {sortedEngineers.map((engineer) => (
+              <TableRow key={engineer.id}>
+                <TableCell className="font-medium">{engineer.name}</TableCell>
+                <TableCell>{engineer.email}</TableCell>
+                <TableCell>{engineer.phone || '-'}</TableCell>
+                <TableCell>{engineer.department}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
-                    {engineer.skills.slice(0, 3).map((skill, index) => (
+                    {engineer.skills.map((skill, index) => (
                       <Badge key={index} variant="secondary" className="text-xs">
                         {skill}
                       </Badge>
                     ))}
-                    {engineer.skills.length > 3 && (
-                      <Badge variant="secondary" className="text-xs">
-                        +{engineer.skills.length - 3}
-                      </Badge>
-                    )}
                   </div>
                 </TableCell>
                 <TableCell>
-                  {getStatusBadge(engineer.status)}
+                  <Badge 
+                    variant={engineer.status === 'active' ? 'default' : 'secondary'}
+                    className={
+                      engineer.status === 'active' 
+                        ? 'bg-green-100 text-green-800' 
+                        : engineer.status === 'on_leave'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }
+                  >
+                    {engineer.status === 'active' ? 'アクティブ' : 
+                     engineer.status === 'on_leave' ? '休職中' : '非アクティブ'}
+                  </Badge>
                 </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => handleViewEngineer(engineer)}>
-                      <Eye className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleEditEngineer(engineer)}>
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => onNavigateToSchedule(engineer.id)}
+                <TableCell className="text-center">
+                  <span className="font-medium text-blue-600">{engineer.totalProjects}</span>
+                </TableCell>
+                <TableCell className="text-center">
+                  <span className="font-medium text-green-600">{engineer.completedProjects}</span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewEngineer(engineer)}
                     >
-                      <Calendar className="w-4 h-4" />
+                      <Eye className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDeleteEngineer(engineer)}>
-                      <Trash2 className="w-4 h-4" />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditEngineer(engineer)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteClick(engineer)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </TableCell>
@@ -472,79 +546,151 @@ export default function EngineerManagement({ currentUser: _currentUser, onNaviga
             ))}
           </TableBody>
         </Table>
-        
-        {/* ページネーション */}
-        <div className="flex items-center justify-between px-6 py-4 border-t">
-          <div className="text-sm text-muted-foreground">
-            {filteredEngineers.length}人中 1-{Math.min(filteredEngineers.length, 10)}人を表示
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" disabled>
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <Button variant="outline" size="sm" className="bg-primary text-primary-foreground">1</Button>
-            <Button variant="outline" size="sm">2</Button>
-            <Button variant="outline" size="sm">3</Button>
-            <Button variant="outline" size="sm">
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </Card>
+      </div>
 
-      {/* 隠しファイル入力 */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".csv"
-        onChange={handleCSVImport}
-        style={{ display: 'none' }}
-      />
+      {/* 新規エンジニア追加ダイアログ */}
+      <Dialog open={isAddEngineerOpen} onOpenChange={setIsAddEngineerOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>エンジニア追加</DialogTitle>
+            <DialogDescription>
+              新しいエンジニアの情報を入力してください。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="name">名前 *</Label>
+              <Input
+                id="name"
+                value={newEngineer.name}
+                onChange={(e) => setNewEngineer({ ...newEngineer, name: e.target.value })}
+                placeholder="山田太郎"
+              />
+            </div>
+            <div>
+              <Label htmlFor="email">メールアドレス *</Label>
+              <Input
+                id="email"
+                type="email"
+                value={newEngineer.email}
+                onChange={(e) => setNewEngineer({ ...newEngineer, email: e.target.value })}
+                placeholder="yamada@example.com"
+              />
+            </div>
+            <div>
+              <Label htmlFor="phone">電話番号</Label>
+              <Input
+                id="phone"
+                value={newEngineer.phone}
+                onChange={(e) => setNewEngineer({ ...newEngineer, phone: e.target.value })}
+                placeholder="090-1234-5678"
+              />
+            </div>
+            <div>
+              <Label htmlFor="department">部署 *</Label>
+              <Input
+                id="department"
+                value={newEngineer.department}
+                onChange={(e) => setNewEngineer({ ...newEngineer, department: e.target.value })}
+                placeholder="開発部"
+              />
+            </div>
+            <div>
+              <Label htmlFor="skills">スキル</Label>
+              <Input
+                id="skills"
+                value={skillsToString(newEngineer.skills)}
+                onChange={(e) => setNewEngineer({ ...newEngineer, skills: parseSkills(e.target.value) })}
+                placeholder="JavaScript, React, Node.js"
+              />
+            </div>
+            <div>
+              <Label htmlFor="status">ステータス</Label>
+              <Select
+                value={newEngineer.status}
+                onValueChange={(value: 'active' | 'inactive' | 'on_leave') => 
+                  setNewEngineer({ ...newEngineer, status: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">アクティブ</SelectItem>
+                  <SelectItem value="inactive">非アクティブ</SelectItem>
+                  <SelectItem value="on_leave">休職中</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddEngineerOpen(false)}>
+              キャンセル
+            </Button>
+            <Button onClick={handleAddEngineer} disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              追加
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* エンジニア詳細表示ダイアログ */}
       <Dialog open={isViewEngineerOpen} onOpenChange={setIsViewEngineerOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>エンジニア詳細</DialogTitle>
+            <DialogDescription>
+              {selectedEngineer?.name}の詳細情報
+            </DialogDescription>
           </DialogHeader>
           {selectedEngineer && (
-            <div className="space-y-4 py-4">
-              <div className="flex items-center gap-4">
-                <Avatar className="w-16 h-16">
-                  <AvatarImage src={selectedEngineer.avatar} />
-                  <AvatarFallback className="bg-primary text-primary-foreground text-lg">
-                    {selectedEngineer.name[0]}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="text-lg font-semibold">{selectedEngineer.name}</h3>
-                  <p className="text-sm text-muted-foreground">ID: ENG{selectedEngineer.id.toString().padStart(3, '0')}</p>
-                  {getStatusBadge(selectedEngineer.status)}
-                </div>
-              </div>
+            <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-medium">メール</Label>
-                  <p className="text-sm">{selectedEngineer.email}</p>
+                  <Label>名前</Label>
+                  <p className="text-sm text-gray-900">{selectedEngineer.name}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">電話</Label>
-                  <p className="text-sm">{selectedEngineer.phone}</p>
+                  <Label>メールアドレス</Label>
+                  <p className="text-sm text-gray-900">{selectedEngineer.email}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">部門</Label>
-                  <p className="text-sm">{selectedEngineer.departmentId === 1 ? '技術部' : '保守部'}</p>
+                  <Label>電話番号</Label>
+                  <p className="text-sm text-gray-900">{selectedEngineer.phone || '-'}</p>
                 </div>
                 <div>
-                  <Label className="text-sm font-medium">現在のタスク</Label>
-                  <p className="text-sm">{selectedEngineer.currentTask?.title || 'なし'}</p>
+                  <Label>部署</Label>
+                  <p className="text-sm text-gray-900">{selectedEngineer.department}</p>
+                </div>
+                <div>
+                  <Label>ステータス</Label>
+                  <Badge 
+                    variant={selectedEngineer.status === 'active' ? 'default' : 'secondary'}
+                    className={
+                      selectedEngineer.status === 'active' 
+                        ? 'bg-green-100 text-green-800' 
+                        : selectedEngineer.status === 'on_leave'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }
+                  >
+                    {selectedEngineer.status === 'active' ? 'アクティブ' : 
+                     selectedEngineer.status === 'on_leave' ? '休職中' : '非アクティブ'}
+                  </Badge>
+                </div>
+                <div>
+                  <Label>作成日</Label>
+                  <p className="text-sm text-gray-900">
+                    {selectedEngineer.createdAt.toLocaleDateString('ja-JP')}
+                  </p>
                 </div>
               </div>
               <div>
-                <Label className="text-sm font-medium">スキル</Label>
-                <div className="flex flex-wrap gap-1 mt-1">
+                <Label>スキル</Label>
+                <div className="flex flex-wrap gap-2 mt-2">
                   {selectedEngineer.skills.map((skill, index) => (
-                    <Badge key={index} variant="secondary" className="text-xs">
+                    <Badge key={index} variant="secondary">
                       {skill}
                     </Badge>
                   ))}
@@ -552,131 +698,120 @@ export default function EngineerManagement({ currentUser: _currentUser, onNaviga
               </div>
             </div>
           )}
-          <div className="flex justify-end">
+          <DialogFooter>
             <Button variant="outline" onClick={() => setIsViewEngineerOpen(false)}>
               閉じる
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* エンジニア編集ダイアログ */}
       <Dialog open={isEditEngineerOpen} onOpenChange={setIsEditEngineerOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>エンジニア編集</DialogTitle>
+            <DialogDescription>
+              {engineerToEdit?.name}の情報を編集してください。
+            </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-name">名前</Label>
-                <Input
-                  id="edit-name"
-                  value={editEngineer.name}
-                  onChange={(e) => setEditEngineer({...editEngineer, name: e.target.value})}
-                  placeholder="エンジニア名"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-email">メール</Label>
-                <Input
-                  id="edit-email"
-                  type="email"
-                  value={editEngineer.email}
-                  onChange={(e) => setEditEngineer({...editEngineer, email: e.target.value})}
-                  placeholder="email@example.com"
-                />
-              </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="edit-name">名前 *</Label>
+              <Input
+                id="edit-name"
+                value={editEngineer.name}
+                onChange={(e) => setEditEngineer({ ...editEngineer, name: e.target.value })}
+                placeholder="山田太郎"
+              />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-phone">電話番号</Label>
-                <Input
-                  id="edit-phone"
-                  value={editEngineer.phone}
-                  onChange={(e) => setEditEngineer({...editEngineer, phone: e.target.value})}
-                  placeholder="090-1234-5678"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-department">部門</Label>
-                <Select value={editEngineer.departmentId.toString()} onValueChange={(value) => setEditEngineer({...editEngineer, departmentId: parseInt(value)})}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">技術部</SelectItem>
-                    <SelectItem value="2">保守部</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div>
+              <Label htmlFor="edit-email">メールアドレス *</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editEngineer.email}
+                onChange={(e) => setEditEngineer({ ...editEngineer, email: e.target.value })}
+                placeholder="yamada@example.com"
+              />
             </div>
-            <div className="grid gap-2">
+            <div>
+              <Label htmlFor="edit-phone">電話番号</Label>
+              <Input
+                id="edit-phone"
+                value={editEngineer.phone}
+                onChange={(e) => setEditEngineer({ ...editEngineer, phone: e.target.value })}
+                placeholder="090-1234-5678"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-department">部署 *</Label>
+              <Input
+                id="edit-department"
+                value={editEngineer.department}
+                onChange={(e) => setEditEngineer({ ...editEngineer, department: e.target.value })}
+                placeholder="開発部"
+              />
+            </div>
+            <div>
               <Label htmlFor="edit-skills">スキル</Label>
               <Input
                 id="edit-skills"
-                value={editEngineer.skills.join(', ')}
-                onChange={(e) => setEditEngineer({...editEngineer, skills: e.target.value.split(',').map(s => s.trim()).filter(s => s)})}
+                value={skillsToString(editEngineer.skills)}
+                onChange={(e) => setEditEngineer({ ...editEngineer, skills: parseSkills(e.target.value) })}
                 placeholder="JavaScript, React, Node.js"
               />
             </div>
-            <div className="grid gap-2">
+            <div>
               <Label htmlFor="edit-status">ステータス</Label>
-              <Select value={editEngineer.status} onValueChange={(value) => setEditEngineer({...editEngineer, status: value})}>
+              <Select
+                value={editEngineer.status}
+                onValueChange={(value: 'active' | 'inactive' | 'on_leave') => 
+                  setEditEngineer({ ...editEngineer, status: value })
+                }
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="available">待機</SelectItem>
-                  <SelectItem value="active">稼働中</SelectItem>
-                  <SelectItem value="busy">作業中</SelectItem>
-                  <SelectItem value="inactive">非稼働</SelectItem>
-                  <SelectItem value="on_leave">休暇中</SelectItem>
+                  <SelectItem value="active">アクティブ</SelectItem>
+                  <SelectItem value="inactive">非アクティブ</SelectItem>
+                  <SelectItem value="on_leave">休職中</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsEditEngineerOpen(false)}>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleEditCancel}>
               キャンセル
             </Button>
-            <Button onClick={handleUpdateEngineer}>
+            <Button onClick={handleUpdateEngineer} disabled={loading}>
+              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               更新
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* 削除確認ダイアログ */}
       <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>エンジニア削除確認</DialogTitle>
+            <DialogTitle>エンジニア削除の確認</DialogTitle>
+            <DialogDescription>
+              本当に「{engineerToDelete?.name}」を削除しますか？この操作は取り消せません。
+            </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground mb-4">
-              以下のエンジニアを削除しますか？この操作は取り消すことができません。
-            </p>
-            {engineerToDelete && (
-              <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
-                <Avatar className="w-10 h-10">
-                  <AvatarImage src={engineerToDelete.avatar} />
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {engineerToDelete.name[0]}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium">{engineerToDelete.name}</p>
-                  <p className="text-sm text-muted-foreground">{engineerToDelete.email}</p>
-                </div>
-              </div>
-            )}
-          </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteConfirmOpen(false)}>
+            <Button variant="outline" onClick={handleDeleteCancel}>
               キャンセル
             </Button>
-            <Button variant="destructive" onClick={confirmDeleteEngineer}>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteEngineer}
+              disabled={loading}
+            >
+              {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               削除
             </Button>
           </DialogFooter>

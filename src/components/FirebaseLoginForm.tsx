@@ -31,17 +31,28 @@ export default function FirebaseLoginForm({ onLoginSuccess }: FirebaseLoginFormP
     
     try {
       if (isRegisterMode) {
-        await registerWithEmail(email, password, name);
+        console.log('新規ユーザー登録を開始:', { email, name });
+        const user = await registerWithEmail(email, password, name);
+        console.log('ユーザー登録成功:', user);
         setError('');
-        alert('アカウントが作成されました。ログインしてください。');
-        setIsRegisterMode(false);
+        // 登録成功後、自動的にログイン状態にする
+        setTimeout(() => {
+          onLoginSuccess();
+        }, 100);
       } else {
-        await loginWithEmail(email, password);
-        onLoginSuccess();
+        console.log('ログインを開始:', { email });
+        const user = await loginWithEmail(email, password);
+        console.log('ログイン成功:', user);
+        // ログイン成功後、少し待ってからコールバックを実行
+        setTimeout(() => {
+          onLoginSuccess();
+        }, 100);
       }
     } catch (err: unknown) {
       console.error('Auth error:', err);
       const error = err as { code?: string; message?: string };
+      console.error('Error code:', error.code, 'Error message:', error.message);
+      
       if (error.code === 'auth/user-not-found') {
         setError('ユーザーが見つかりません');
       } else if (error.code === 'auth/wrong-password') {
@@ -52,8 +63,12 @@ export default function FirebaseLoginForm({ onLoginSuccess }: FirebaseLoginFormP
         setError('パスワードは6文字以上で入力してください');
       } else if (error.code === 'auth/invalid-email') {
         setError('有効なメールアドレスを入力してください');
+      } else if (error.code === 'auth/operation-not-allowed') {
+        setError('メール・パスワード認証が有効になっていません。Firebase Consoleで設定を確認してください。');
+      } else if (error.code === 'auth/network-request-failed') {
+        setError('ネットワークエラーが発生しました。インターネット接続を確認してください。');
       } else {
-        setError('ログインに失敗しました。再度お試しください。');
+        setError(`認証エラー: ${error.message || '不明なエラーが発生しました'}`);
       }
     } finally {
       setIsLoading(false);

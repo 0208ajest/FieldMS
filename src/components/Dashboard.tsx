@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,168 +10,256 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Users, Calendar, Clipboard, CheckCircle, AlertTriangle, Plus } from 'lucide-react';
+import { Users, Calendar, Clipboard, CheckCircle, AlertTriangle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { getEngineers, getWorkOrders, getSchedules } from '@/lib/firestore';
+import { Engineer, WorkOrder, Schedule } from '@/types';
 
 interface DashboardProps {
   onNavigateToDispatch: () => void;
+  currentUser?: { name: string; companyId: number };
 }
 
-export default function Dashboard({ onNavigateToDispatch }: DashboardProps) {
-  const [isNewWorkOrderOpen, setIsNewWorkOrderOpen] = useState(false);
+export default function Dashboard({ onNavigateToDispatch, currentUser }: DashboardProps) {
   const [isAllActivitiesOpen, setIsAllActivitiesOpen] = useState(false);
-  const [newWorkOrder, setNewWorkOrder] = useState({
-    title: '',
-    description: '',
-    priority: 'medium',
-    assignedEngineer: '',
-    dueDate: '',
-    estimatedHours: ''
+
+  // 実際のデータを管理するstate
+  const [engineers, setEngineers] = useState<Engineer[]>([]);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // データ取得
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // エンジニア、作業指示、スケジュールデータを並行取得
+        const [firestoreEngineers, firestoreWorkOrders, firestoreSchedules] = await Promise.all([
+          getEngineers(),
+          getWorkOrders(),
+          getSchedules()
+        ]);
+
+        // エンジニアデータを変換
+        const convertedEngineers: Engineer[] = firestoreEngineers.map((firestoreEngineer: any) => ({
+          id: firestoreEngineer.id,
+          name: firestoreEngineer.name,
+          email: firestoreEngineer.email,
+          phone: firestoreEngineer.phone || '',
+          departmentId: parseInt(firestoreEngineer.companyId) || 1,
+          skills: firestoreEngineer.skills || [],
+          status: firestoreEngineer.status,
+          totalProjects: 0,
+          completedProjects: 0,
+          createdAt: firestoreEngineer.createdAt,
+          updatedAt: firestoreEngineer.updatedAt,
+        }));
+
+        // 作業指示データを変換
+        const convertedWorkOrders: WorkOrder[] = firestoreWorkOrders.map(firestoreWorkOrder => ({
+          id: parseInt(firestoreWorkOrder.id) || 0,
+          title: firestoreWorkOrder.title,
+          description: firestoreWorkOrder.description,
+          location: firestoreWorkOrder.location,
+          priority: firestoreWorkOrder.priority,
+          status: firestoreWorkOrder.status,
+          assignedEngineerId: firestoreWorkOrder.engineerId ? parseInt(firestoreWorkOrder.engineerId) : undefined,
+          estimatedDuration: firestoreWorkOrder.estimatedDuration,
+          actualDuration: firestoreWorkOrder.actualDuration,
+          createdAt: firestoreWorkOrder.createdAt,
+          updatedAt: firestoreWorkOrder.updatedAt,
+          dueDate: firestoreWorkOrder.dueDate,
+          firebaseId: firestoreWorkOrder.id
+        }));
+
+        // スケジュールデータを変換
+        const convertedSchedules: Schedule[] = firestoreSchedules.map(firestoreSchedule => ({
+          id: parseInt(firestoreSchedule.id) || 0,
+          title: firestoreSchedule.title,
+          description: firestoreSchedule.description,
+          engineerId: firestoreSchedule.engineerId || '',
+          engineerName: firestoreSchedule.engineerName,
+          startDate: firestoreSchedule.startTime.toISOString().split('T')[0],
+          endDate: firestoreSchedule.endTime.toISOString().split('T')[0],
+          status: firestoreSchedule.status,
+          priority: firestoreSchedule.priority || 'medium',
+          workOrderId: firestoreSchedule.workOrderId ? parseInt(firestoreSchedule.workOrderId) : null,
+          location: firestoreSchedule.location,
+          firebaseId: firestoreSchedule.id
+        }));
+
+        setEngineers(convertedEngineers);
+        setWorkOrders(convertedWorkOrders);
+        setSchedules(convertedSchedules);
+      } catch (err) {
+        console.error('ダッシュボードデータ取得エラー:', err);
+        setError('データの取得に失敗しました');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // 実際のデータから計算される統計情報
+  const activeEngineers = engineers.filter(e => e.status === 'active').length;
+  const todaySchedules = schedules.filter(s => {
+    const today = new Date().toISOString().split('T')[0];
+    return s.startDate === today;
+  }).length;
+  const inProgressWorkOrders = workOrders.filter(w => w.status === 'in_progress').length;
+  const completedWorkOrders = workOrders.filter(w => w.status === 'completed').length;
+  const totalWorkOrders = workOrders.length;
+  const completionRate = totalWorkOrders > 0 ? Math.round((completedWorkOrders / totalWorkOrders) * 100) : 0;
+
+  // 過去7日間のスケジュールデータ
+  const scheduleData = (() => {
+    const data = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const scheduled = schedules.filter(s => s.startDate === dateStr).length;
+      const completed = schedules.filter(s => s.startDate === dateStr && s.status === 'completed').length;
+      data.push({
+        date: `${date.getMonth() + 1}/${date.getDate()}`,
+        scheduled,
+        completed
+      });
+    }
+    return data;
+  })();
+
+  // エンジニア稼働率データ
+  const engineerUtilizationData = engineers.slice(0, 5).map(engineer => {
+    const engineerSchedules = schedules.filter(s => s.engineerId === engineer.id);
+    const completedSchedules = engineerSchedules.filter(s => s.status === 'completed').length;
+    const utilization = engineerSchedules.length > 0 ? Math.round((completedSchedules / engineerSchedules.length) * 100) : 0;
+    return {
+      name: engineer.name,
+      utilization
+    };
   });
 
-  // モックデータ
-  const scheduleData = [
-    { date: '1/1', scheduled: 12, completed: 10 },
-    { date: '1/2', scheduled: 15, completed: 14 },
-    { date: '1/3', scheduled: 18, completed: 16 },
-    { date: '1/4', scheduled: 20, completed: 18 },
-    { date: '1/5', scheduled: 16, completed: 15 },
-    { date: '1/6', scheduled: 14, completed: 13 },
-    { date: '1/7', scheduled: 22, completed: 20 },
-  ];
-
-  const engineerUtilizationData = [
-    { name: '田中', utilization: 85 },
-    { name: '山田', utilization: 92 },
-    { name: '佐藤', utilization: 78 },
-    { name: '鈴木', utilization: 88 },
-    { name: '高橋', utilization: 95 },
-  ];
-
-  const allActivities = [
-    { id: 1, type: 'completed', title: '作業完了', description: '田中エンジニア - サーバー保守', time: '5分前', icon: CheckCircle, color: 'green' },
-    { id: 2, type: 'schedule', title: '新規スケジュール', description: '山田エンジニア - 15:00-17:00', time: '15分前', icon: Calendar, color: 'blue' },
-    { id: 3, type: 'urgent', title: '緊急作業指示', description: 'ネットワーク障害対応', time: '30分前', icon: AlertTriangle, color: 'orange' },
-    { id: 4, type: 'assigned', title: '作業割り当て', description: '佐藤エンジニア - システム更新', time: '1時間前', icon: Clipboard, color: 'blue' },
-    { id: 5, type: 'completed', title: '作業完了', description: '鈴木エンジニア - データベース最適化', time: '2時間前', icon: CheckCircle, color: 'green' },
-    { id: 6, type: 'schedule', title: 'スケジュール変更', description: '高橋エンジニア - 時間変更', time: '3時間前', icon: Calendar, color: 'blue' },
-  ];
-
-  const handleNewWorkOrderSubmit = () => {
-    // 新規作業指示の作成処理
-    console.log('新規作業指示:', newWorkOrder);
-    setIsNewWorkOrderOpen(false);
-    setNewWorkOrder({
-      title: '',
-      description: '',
-      priority: 'medium',
-      assignedEngineer: '',
-      dueDate: '',
-      estimatedHours: ''
+  // 最近のアクティビティ
+  const allActivities = (() => {
+    const activities = [];
+    
+    // 最近の作業指示完了
+    const recentCompletedWorkOrders = workOrders
+      .filter(w => w.status === 'completed')
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 3);
+    
+    recentCompletedWorkOrders.forEach(workOrder => {
+      const timeDiff = Date.now() - new Date(workOrder.updatedAt).getTime();
+      const minutes = Math.floor(timeDiff / (1000 * 60));
+      const timeStr = minutes < 60 ? `${minutes}分前` : `${Math.floor(minutes / 60)}時間前`;
+      
+      activities.push({
+        id: `completed-${workOrder.id}`,
+        type: 'completed',
+        title: '作業完了',
+        description: `${workOrder.title}`,
+        time: timeStr,
+        icon: CheckCircle,
+        color: 'green'
+      });
     });
-  };
+
+    // 最近のスケジュール作成
+    const recentSchedules = schedules
+      .sort((a, b) => new Date(b.createdAt || new Date()).getTime() - new Date(a.createdAt || new Date()).getTime())
+      .slice(0, 2);
+    
+    recentSchedules.forEach(schedule => {
+      const timeDiff = Date.now() - new Date(schedule.createdAt || new Date()).getTime();
+      const minutes = Math.floor(timeDiff / (1000 * 60));
+      const timeStr = minutes < 60 ? `${minutes}分前` : `${Math.floor(minutes / 60)}時間前`;
+      
+      activities.push({
+        id: `schedule-${schedule.id}`,
+        type: 'schedule',
+        title: '新規スケジュール',
+        description: `${schedule.engineerName || 'エンジニア'} - ${schedule.title}`,
+        time: timeStr,
+        icon: Calendar,
+        color: 'blue'
+      });
+    });
+
+    // 緊急作業指示
+    const urgentWorkOrders = workOrders
+      .filter(w => w.priority === 'urgent' && w.status !== 'completed')
+      .slice(0, 1);
+    
+    urgentWorkOrders.forEach(workOrder => {
+      activities.push({
+        id: `urgent-${workOrder.id}`,
+        type: 'urgent',
+        title: '緊急作業指示',
+        description: workOrder.title,
+        time: '現在',
+        icon: AlertTriangle,
+        color: 'orange'
+      });
+    });
+
+    return activities.sort((a, b) => {
+      const timeA = a.time.includes('分前') ? parseInt(a.time) : 
+                   a.time.includes('時間前') ? parseInt(a.time) * 60 : 0;
+      const timeB = b.time.includes('分前') ? parseInt(b.time) : 
+                   b.time.includes('時間前') ? parseInt(b.time) * 60 : 0;
+      return timeA - timeB;
+    }).slice(0, 6);
+  })();
+
+
+  // ローディング状態
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-muted-foreground">ダッシュボードデータを読み込み中...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // エラー状態
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-4 h-4 text-red-600" />
+            </div>
+            <p className="text-red-600 font-medium">{error}</p>
+            <p className="text-muted-foreground text-sm mt-2">ページを再読み込みしてください</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* ページヘッダー */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">ダッシュボード</h1>
+          <h1 className="text-2xl font-semibold">
+            ようこそ{currentUser?.name ? ` ${currentUser.name}` : ''}さん
+          </h1>
           <p className="text-muted-foreground">システム概要とクイックアクション</p>
-        </div>
-        <div className="flex gap-2">
-          <Dialog open={isNewWorkOrderOpen} onOpenChange={setIsNewWorkOrderOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="w-4 h-4 mr-2" />
-                新規作業指示
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>新規作業指示</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="title">タイトル</Label>
-                  <Input
-                    id="title"
-                    value={newWorkOrder.title}
-                    onChange={(e) => setNewWorkOrder({...newWorkOrder, title: e.target.value})}
-                    placeholder="作業指示のタイトル"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="description">詳細</Label>
-                  <Textarea
-                    id="description"
-                    value={newWorkOrder.description}
-                    onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})}
-                    placeholder="作業内容の詳細"
-                    rows={3}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="priority">優先度</Label>
-                    <Select value={newWorkOrder.priority} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, priority: value})}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">低</SelectItem>
-                        <SelectItem value="medium">中</SelectItem>
-                        <SelectItem value="high">高</SelectItem>
-                        <SelectItem value="urgent">緊急</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="estimatedHours">予想時間</Label>
-                    <Input
-                      id="estimatedHours"
-                      type="number"
-                      value={newWorkOrder.estimatedHours}
-                      onChange={(e) => setNewWorkOrder({...newWorkOrder, estimatedHours: e.target.value})}
-                      placeholder="時間"
-                    />
-                  </div>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="assignedEngineer">担当エンジニア</Label>
-                  <Select value={newWorkOrder.assignedEngineer} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, assignedEngineer: value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="エンジニアを選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="tanaka">田中</SelectItem>
-                      <SelectItem value="yamada">山田</SelectItem>
-                      <SelectItem value="sato">佐藤</SelectItem>
-                      <SelectItem value="suzuki">鈴木</SelectItem>
-                      <SelectItem value="takahashi">高橋</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="dueDate">期限</Label>
-                  <Input
-                    id="dueDate"
-                    type="date"
-                    value={newWorkOrder.dueDate}
-                    onChange={(e) => setNewWorkOrder({...newWorkOrder, dueDate: e.target.value})}
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsNewWorkOrderOpen(false)}>
-                  キャンセル
-                </Button>
-                <Button onClick={handleNewWorkOrderSubmit}>
-                  作成
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 
@@ -182,15 +270,14 @@ export default function Dashboard({ onNavigateToDispatch }: DashboardProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">アクティブエンジニア</p>
-              <p className="text-2xl font-bold text-primary">24</p>
+              <p className="text-2xl font-bold text-primary">{activeEngineers}</p>
             </div>
             <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
               <Users className="w-6 h-6 text-primary" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-xs">
-            <span className="text-green-600">↗ +12%</span>
-            <span className="text-muted-foreground ml-1">前月比</span>
+            <span className="text-muted-foreground">総数: {engineers.length}人</span>
           </div>
         </Card>
         
@@ -199,14 +286,14 @@ export default function Dashboard({ onNavigateToDispatch }: DashboardProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">今日のスケジュール</p>
-              <p className="text-2xl font-bold text-blue-600">18</p>
+              <p className="text-2xl font-bold text-blue-600">{todaySchedules}</p>
             </div>
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <Calendar className="w-6 h-6 text-blue-600" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-xs">
-            <span className="text-orange-600">3件進行中</span>
+            <span className="text-orange-600">{inProgressWorkOrders}件進行中</span>
           </div>
         </Card>
 
@@ -215,7 +302,7 @@ export default function Dashboard({ onNavigateToDispatch }: DashboardProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">未割り当て指示書</p>
-              <p className="text-2xl font-bold text-orange-600">7</p>
+              <p className="text-2xl font-bold text-orange-600">{workOrders.filter(w => w.status === 'pending').length}</p>
             </div>
             <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
               <Clipboard className="w-6 h-6 text-orange-600" />
@@ -233,14 +320,14 @@ export default function Dashboard({ onNavigateToDispatch }: DashboardProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">今月完了率</p>
-              <p className="text-2xl font-bold text-green-600">94%</p>
+              <p className="text-2xl font-bold text-green-600">{completionRate}%</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
           </div>
           <div className="mt-4">
-            <Progress value={94} className="h-2" />
+            <Progress value={completionRate} className="h-2" />
           </div>
         </Card>
       </div>

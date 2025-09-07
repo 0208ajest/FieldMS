@@ -13,22 +13,21 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Filter, Plus, User, MapPin, Clock, Calendar, MoreHorizontal, CheckCircle, Clipboard } from 'lucide-react';
-import { User as UserType, WorkOrder, Schedule, Engineer } from '@/types';
+import { User as UserType, WorkOrder, Schedule, FirestoreWorkOrder } from '@/types';
 import { 
   addWorkOrder, 
   getWorkOrders, 
-  updateWorkOrder,
+  updateWorkOrder, 
+  deleteWorkOrder,
   getEngineers,
-  getSchedules,
-  addSchedule,
-  updateSchedule
+  getSchedules 
 } from '@/lib/firestore';
 
 interface DispatchBoardProps {
   currentUser: UserType;
 }
 
-export default function DispatchBoard({ }: DispatchBoardProps) {
+export default function DispatchBoard({ currentUser: _currentUser }: DispatchBoardProps) {
   const [draggedItem, setDraggedItem] = useState<UnifiedItem | null>(null);
   const [isNewWorkOrderOpen, setIsNewWorkOrderOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -36,10 +35,9 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
   const [selectedWorkOrder, setSelectedWorkOrder] = useState<UnifiedItem | null>(null);
   const [workOrdersList, setWorkOrdersList] = useState<WorkOrder[]>([]);
   const [schedulesList, setSchedulesList] = useState<Schedule[]>([]);
-  const [firebaseEngineers, setFirebaseEngineers] = useState<Engineer[]>([]);
+  const [firebaseEngineers, setFirebaseEngineers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
   const [filters, setFilters] = useState({
     priority: 'all',
     engineer: 'all',
@@ -58,10 +56,10 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
     endTime: '',
     customerName: '',
     customerPhone: '',
-    assignedEngineerId: 'unassigned'
+    assignedEngineerId: ''
   });
 
-  const [recommendedEngineers, setRecommendedEngineers] = useState<Engineer[]>([]);
+  const [recommendedEngineers, setRecommendedEngineers] = useState<any[]>([]);
 
   // Firebaseからデータを取得
   useEffect(() => {
@@ -82,7 +80,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
           email: firestoreEngineer.email,
           phone: firestoreEngineer.phone || '',
           departmentId: parseInt(firestoreEngineer.companyId) || 1,
-          skills: firestoreEngineer.skills || [],
+          skills: firestoreEngineer.skills,
           status: firestoreEngineer.status,
           totalProjects: 0,
           completedProjects: 0,
@@ -211,6 +209,13 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
     urgent: '緊急'
   };
 
+  const statusLabels = {
+    pending: '未割り当て',
+    assigned: '割り当て済み',
+    in_progress: '進行中',
+    completed: '完了',
+    cancelled: 'キャンセル'
+  };
 
   const engineerStatusLabels = {
     active: '稼働中',
@@ -250,28 +255,10 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
     }
   };
 
-  // バリデーション関数
-  const validateWorkOrder = () => {
-    const errors: {[key: string]: string} = {};
-    
-    if (!newWorkOrder.title.trim()) {
-      errors.title = 'タイトルは必須項目です';
-    }
-    if (!newWorkOrder.description.trim()) {
-      errors.description = '詳細は必須項目です';
-    }
-    if (!newWorkOrder.location.trim()) {
-      errors.location = '場所は必須項目です';
-    }
-    
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
   // 新規作業指示作成
   const handleCreateWorkOrder = async () => {
-    // バリデーションを実行
-    if (!validateWorkOrder()) {
+    if (!newWorkOrder.title || !newWorkOrder.description || !newWorkOrder.location) {
+      setError('タイトル、詳細、場所は必須項目です');
       return;
     }
 
@@ -279,10 +266,11 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
       setLoading(true);
       setError(null);
 
+      const startDateTime = new Date(`${newWorkOrder.startDate || new Date().toISOString().split('T')[0]}T${newWorkOrder.startTime || '09:00'}`);
       const endDateTime = new Date(`${newWorkOrder.endDate || newWorkOrder.startDate || new Date().toISOString().split('T')[0]}T${newWorkOrder.endTime || newWorkOrder.startTime || '18:00'}`);
 
       // 担当エンジニアの情報を取得
-      const assignedEngineer = newWorkOrder.assignedEngineerId && newWorkOrder.assignedEngineerId !== 'unassigned' ? 
+      const assignedEngineer = newWorkOrder.assignedEngineerId ? 
         firebaseEngineers.find(e => e.id === newWorkOrder.assignedEngineerId) : null;
 
       // Firestoreに保存する作業指示データを作成
@@ -291,8 +279,8 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
         description: newWorkOrder.description,
         location: newWorkOrder.location,
         priority: newWorkOrder.priority as 'low' | 'medium' | 'high' | 'urgent',
-        status: (newWorkOrder.assignedEngineerId && newWorkOrder.assignedEngineerId !== 'unassigned') ? 'assigned' as const : 'pending' as const,
-        engineerId: (newWorkOrder.assignedEngineerId && newWorkOrder.assignedEngineerId !== 'unassigned') ? newWorkOrder.assignedEngineerId : '',
+        status: newWorkOrder.assignedEngineerId ? 'assigned' as const : 'pending' as const,
+        engineerId: newWorkOrder.assignedEngineerId || '',
         engineerName: assignedEngineer?.name || '',
         estimatedDuration: parseInt(newWorkOrder.estimatedDuration) || 60,
         dueDate: endDateTime,
@@ -303,30 +291,6 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
       // Firestoreに作業指示を追加
       const workOrderId = await addWorkOrder(workOrderData);
       console.log('✅ 作業指示が作成されました:', workOrderId);
-
-      // エンジニアが割り当てられている場合は、対応するスケジュールも作成
-      if (assignedEngineer && newWorkOrder.startDate && newWorkOrder.startTime) {
-        const startDateTime = new Date(`${newWorkOrder.startDate}T${newWorkOrder.startTime}`);
-        const endDateTime = new Date(`${newWorkOrder.endDate || newWorkOrder.startDate}T${newWorkOrder.endTime || newWorkOrder.startTime}`);
-        
-        const scheduleData = {
-          title: newWorkOrder.title,
-          description: newWorkOrder.description,
-          startTime: startDateTime,
-          endTime: endDateTime,
-          engineerId: assignedEngineer.id,
-          engineerName: assignedEngineer.name,
-          workOrderId: workOrderId,
-          status: 'scheduled' as const,
-          priority: newWorkOrder.priority as 'low' | 'medium' | 'high' | 'urgent',
-          location: newWorkOrder.location,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-
-        const scheduleId = await addSchedule(scheduleData);
-        console.log('✅ 対応するスケジュールが作成されました:', scheduleId);
-      }
 
       // 作業指示一覧を再取得
       const updatedFirestoreWorkOrders = await getWorkOrders();
@@ -361,9 +325,8 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
         endTime: '',
         customerName: '',
         customerPhone: '',
-        assignedEngineerId: 'unassigned'
+        assignedEngineerId: ''
       });
-      setValidationErrors({});
       setIsNewWorkOrderOpen(false);
       setRecommendedEngineers([]);
     } catch (err) {
@@ -376,91 +339,23 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
 
 
   // 作業開始
-  const handleStartWork = async (workOrderId: number) => {
-    try {
-      const workOrder = workOrdersList.find(wo => wo.id === workOrderId);
-      if (!workOrder || !workOrder.firebaseId) return;
-
-      // 作業指示のステータスを更新
-      await updateWorkOrder(workOrder.firebaseId, {
-        status: 'in_progress'
-      });
-
-      // 対応するスケジュールのステータスも更新
-      const schedules = await getSchedules();
-      const relatedSchedule = schedules.find(schedule => schedule.workOrderId === workOrder.firebaseId);
-      if (relatedSchedule) {
-        await updateSchedule(relatedSchedule.id, {
-          status: 'in_progress'
-        });
-        console.log('✅ 対応するスケジュールのステータスも更新されました:', relatedSchedule.id);
-      }
-
-      // データを再取得
-      const updatedWorkOrders = await getWorkOrders();
-      const convertedWorkOrders: WorkOrder[] = updatedWorkOrders.map(firestoreWorkOrder => ({
-        id: parseInt(firestoreWorkOrder.id) || 0,
-        title: firestoreWorkOrder.title,
-        description: firestoreWorkOrder.description,
-        location: firestoreWorkOrder.location,
-        priority: firestoreWorkOrder.priority,
-        status: firestoreWorkOrder.status,
-        assignedEngineerId: firestoreWorkOrder.engineerId ? parseInt(firestoreWorkOrder.engineerId) : undefined,
-        estimatedDuration: firestoreWorkOrder.estimatedDuration,
-        actualDuration: firestoreWorkOrder.actualDuration,
-        createdAt: firestoreWorkOrder.createdAt,
-        updatedAt: firestoreWorkOrder.updatedAt,
-        dueDate: firestoreWorkOrder.dueDate,
-        firebaseId: firestoreWorkOrder.id
-      }));
-      setWorkOrdersList(convertedWorkOrders);
-    } catch (error) {
-      console.error('作業開始エラー:', error);
-    }
+  const handleStartWork = (workOrderId: number) => {
+    const updatedWorkOrders = workOrdersList.map(wo => 
+      wo.id === workOrderId 
+        ? { ...wo, status: 'in_progress' as const }
+        : wo
+    );
+    setWorkOrdersList(updatedWorkOrders);
   };
 
   // 作業完了
-  const handleCompleteWork = async (workOrderId: number) => {
-    try {
-      const workOrder = workOrdersList.find(wo => wo.id === workOrderId);
-      if (!workOrder || !workOrder.firebaseId) return;
-
-      // 作業指示のステータスを更新
-      await updateWorkOrder(workOrder.firebaseId, {
-        status: 'completed'
-      });
-
-      // 対応するスケジュールのステータスも更新
-      const schedules = await getSchedules();
-      const relatedSchedule = schedules.find(schedule => schedule.workOrderId === workOrder.firebaseId);
-      if (relatedSchedule) {
-        await updateSchedule(relatedSchedule.id, {
-          status: 'completed'
-        });
-        console.log('✅ 対応するスケジュールのステータスも更新されました:', relatedSchedule.id);
-      }
-
-      // データを再取得
-      const updatedWorkOrders = await getWorkOrders();
-      const convertedWorkOrders: WorkOrder[] = updatedWorkOrders.map(firestoreWorkOrder => ({
-        id: parseInt(firestoreWorkOrder.id) || 0,
-        title: firestoreWorkOrder.title,
-        description: firestoreWorkOrder.description,
-        location: firestoreWorkOrder.location,
-        priority: firestoreWorkOrder.priority,
-        status: firestoreWorkOrder.status,
-        assignedEngineerId: firestoreWorkOrder.engineerId ? parseInt(firestoreWorkOrder.engineerId) : undefined,
-        estimatedDuration: firestoreWorkOrder.estimatedDuration,
-        actualDuration: firestoreWorkOrder.actualDuration,
-        createdAt: firestoreWorkOrder.createdAt,
-        updatedAt: firestoreWorkOrder.updatedAt,
-        dueDate: firestoreWorkOrder.dueDate,
-        firebaseId: firestoreWorkOrder.id
-      }));
-      setWorkOrdersList(convertedWorkOrders);
-    } catch (error) {
-      console.error('作業完了エラー:', error);
-    }
+  const handleCompleteWork = (workOrderId: number) => {
+    const updatedWorkOrders = workOrdersList.map(wo => 
+      wo.id === workOrderId 
+        ? { ...wo, status: 'completed' as const, completedAt: new Date() }
+        : wo
+    );
+    setWorkOrdersList(updatedWorkOrders);
   };
 
   const openAssignDialog = (workOrder: UnifiedItem) => {
@@ -468,7 +363,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
     setIsAssignDialogOpen(true);
   };
 
-  const openEngineerDetails = (engineer: Engineer) => {
+  const openEngineerDetails = (engineer: any) => {
     console.log('エンジニア詳細:', engineer);
   };
 
@@ -496,7 +391,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
   // 開始日の変更ハンドラー
   const handleStartDateChange = (startDate: string) => {
     setNewWorkOrder({...newWorkOrder, startDate});
-    if (startDate) {
+    if (startDate && newWorkOrder.startTime) {
       getRecommendedEngineers(startDate);
     }
   };
@@ -512,7 +407,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
   // 終了日の変更ハンドラー
   const handleEndDateChange = (endDate: string) => {
     setNewWorkOrder({...newWorkOrder, endDate});
-    if (endDate) {
+    if (endDate && newWorkOrder.endTime) {
       getRecommendedEngineers(endDate);
     }
   };
@@ -532,40 +427,11 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
       const engineer = firebaseEngineers.find(e => e.id === engineerId);
       if (!engineer) return;
 
-      // 作業指示を更新
       await updateWorkOrder(workOrderId, {
         engineerId: engineerId,
         engineerName: engineer.name,
         status: 'assigned'
       });
-
-      // 対応するスケジュールを作成（開始日時と終了日時がある場合）
-      const workOrder = workOrdersList.find(wo => wo.firebaseId === workOrderId);
-      if (workOrder && workOrder.dueDate) {
-        const startDateTime = new Date(workOrder.dueDate);
-        startDateTime.setHours(9, 0, 0, 0); // デフォルトで9:00開始
-        
-        const endDateTime = new Date(startDateTime);
-        endDateTime.setHours(startDateTime.getHours() + Math.ceil(workOrder.estimatedDuration / 60), 0, 0, 0); // 予想時間分追加
-        
-        const scheduleData = {
-          title: workOrder.title,
-          description: workOrder.description,
-          startTime: startDateTime,
-          endTime: endDateTime,
-          engineerId: engineerId,
-          engineerName: engineer.name,
-          workOrderId: workOrderId,
-          status: 'scheduled' as const,
-          priority: workOrder.priority,
-          location: workOrder.location,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-
-        const scheduleId = await addSchedule(scheduleData);
-        console.log('✅ エンジニア割り当て時にスケジュールが作成されました:', scheduleId);
-      }
 
       // データを再取得
       const updatedWorkOrders = await getWorkOrders();
@@ -633,7 +499,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                 <DialogTitle>フィルター設定</DialogTitle>
               </DialogHeader>
               <div className="grid gap-4 py-4">
-                <div className="grid gap-1.5">
+                <div className="grid gap-2">
                   <Label htmlFor="priority-filter">優先度</Label>
                   <Select value={filters.priority} onValueChange={(value) => setFilters({...filters, priority: value})}>
                     <SelectTrigger>
@@ -648,7 +514,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid gap-1.5">
+                <div className="grid gap-2">
                   <Label htmlFor="engineer-filter">エンジニア</Label>
                   <Select value={filters.engineer} onValueChange={(value) => setFilters({...filters, engineer: value})}>
                     <SelectTrigger>
@@ -664,7 +530,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid gap-1.5">
+                <div className="grid gap-2">
                   <Label htmlFor="status-filter">ステータス</Label>
                   <Select value={filters.status} onValueChange={(value) => setFilters({...filters, status: value})}>
                     <SelectTrigger>
@@ -690,85 +556,48 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
               </div>
             </DialogContent>
           </Dialog>
-          <Dialog open={isNewWorkOrderOpen} onOpenChange={(open) => {
-            setIsNewWorkOrderOpen(open);
-            if (open) {
-              // ダイアログが開かれた時に推奨エンジニアを取得
-              const today = new Date().toISOString().split('T')[0];
-              getRecommendedEngineers(today);
-            }
-          }}>
+          <Dialog open={isNewWorkOrderOpen} onOpenChange={setIsNewWorkOrderOpen}>
             <DialogTrigger asChild>
               <Button size="sm">
                 <Plus className="w-4 h-4 mr-2" />
                 新規作業指示
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
                 <DialogTitle>新規作業指示</DialogTitle>
               </DialogHeader>
-              <div className="grid gap-3 py-3">
-                <div className="grid gap-1.5">
-                  <Label htmlFor="title">タイトル <span className="text-red-500">*</span></Label>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="title">タイトル</Label>
                   <Input
                     id="title"
                     value={newWorkOrder.title}
-                    onChange={(e) => {
-                      setNewWorkOrder({...newWorkOrder, title: e.target.value});
-                      // バリデーションエラーをクリア
-                      if (validationErrors.title) {
-                        setValidationErrors({...validationErrors, title: ''});
-                      }
-                    }}
+                    onChange={(e) => setNewWorkOrder({...newWorkOrder, title: e.target.value})}
                     placeholder="作業指示のタイトル"
-                    className={validationErrors.title ? 'border-red-500' : ''}
                   />
-                  {validationErrors.title && (
-                    <p className="text-sm text-red-500">{validationErrors.title}</p>
-                  )}
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="description">詳細 <span className="text-red-500">*</span></Label>
+                <div className="grid gap-2">
+                  <Label htmlFor="description">詳細</Label>
                   <Textarea
                     id="description"
                     value={newWorkOrder.description}
-                    onChange={(e) => {
-                      setNewWorkOrder({...newWorkOrder, description: e.target.value});
-                      // バリデーションエラーをクリア
-                      if (validationErrors.description) {
-                        setValidationErrors({...validationErrors, description: ''});
-                      }
-                    }}
+                    onChange={(e) => setNewWorkOrder({...newWorkOrder, description: e.target.value})}
                     placeholder="作業内容の詳細"
                     rows={3}
-                    className={validationErrors.description ? 'border-red-500' : ''}
                   />
-                  {validationErrors.description && (
-                    <p className="text-sm text-red-500">{validationErrors.description}</p>
-                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="location">場所 <span className="text-red-500">*</span></Label>
+                  <div className="grid gap-2">
+                    <Label htmlFor="location">場所</Label>
                     <Input
                       id="location"
                       value={newWorkOrder.location}
-                      onChange={(e) => {
-                        setNewWorkOrder({...newWorkOrder, location: e.target.value});
-                        // バリデーションエラーをクリア
-                        if (validationErrors.location) {
-                          setValidationErrors({...validationErrors, location: ''});
-                        }
-                      }}
+                      onChange={(e) => setNewWorkOrder({...newWorkOrder, location: e.target.value})}
                       placeholder="作業場所"
-                      className={validationErrors.location ? 'border-red-500' : ''}
                     />
-                    {validationErrors.location && (
-                      <p className="text-sm text-red-500">{validationErrors.location}</p>
-                    )}
                   </div>
-                  <div className="grid gap-1.5">
+                  <div className="grid gap-2">
                     <Label htmlFor="priority">優先度</Label>
                     <Select value={newWorkOrder.priority} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, priority: value})}>
                       <SelectTrigger>
@@ -783,14 +612,14 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                     </Select>
                   </div>
                 </div>
-                <div className="grid gap-1.5">
+                <div className="grid gap-2">
                   <Label htmlFor="assignedEngineer">担当エンジニア</Label>
                   <Select value={newWorkOrder.assignedEngineerId} onValueChange={(value) => setNewWorkOrder({...newWorkOrder, assignedEngineerId: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="エンジニアを選択（任意）" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="unassigned">未割り当て</SelectItem>
+                      <SelectItem value="">未割り当て</SelectItem>
                       {firebaseEngineers.map(engineer => (
                         <SelectItem key={engineer.id} value={engineer.id}>
                           {engineer.name}
@@ -800,7 +629,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                   </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-1.5">
+                  <div className="grid gap-2">
                     <Label htmlFor="duration">予想時間（分）</Label>
                     <Input
                       id="duration"
@@ -810,7 +639,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                       placeholder="60"
                     />
                   </div>
-                  <div className="grid gap-1.5">
+                  <div className="grid gap-2">
                     <Label htmlFor="startDate">開始日</Label>
                     <Input
                       id="startDate"
@@ -821,7 +650,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-1.5">
+                  <div className="grid gap-2">
                     <Label htmlFor="endDate">終了日</Label>
                     <Input
                       id="endDate"
@@ -830,7 +659,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                       onChange={(e) => handleEndDateChange(e.target.value)}
                     />
                   </div>
-                  <div className="grid gap-1.5">
+                  <div className="grid gap-2">
                     <Label htmlFor="startTime">開始時間</Label>
                     <Input
                       id="startTime"
@@ -841,7 +670,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-1.5">
+                  <div className="grid gap-2">
                     <Label htmlFor="endTime">終了時間</Label>
                     <Input
                       id="endTime"
@@ -852,7 +681,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-1.5">
+                  <div className="grid gap-2">
                     <Label htmlFor="customerName">顧客名</Label>
                     <Input
                       id="customerName"
@@ -861,7 +690,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                       placeholder="顧客名"
                     />
                   </div>
-                  <div className="grid gap-1.5">
+                  <div className="grid gap-2">
                     <Label htmlFor="customerPhone">顧客電話</Label>
                     <Input
                       id="customerPhone"
@@ -874,24 +703,24 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                 
                 {/* レコメンドエンジニア */}
                 {recommendedEngineers.length > 0 && (
-                  <div className="grid gap-1.5">
-                    <Label className="text-sm font-medium">推奨エンジニア</Label>
-                    <div className="grid grid-cols-1 gap-1 max-h-24 overflow-y-auto">
+                  <div className="grid gap-2">
+                    <Label>推奨エンジニア</Label>
+                    <div className="grid grid-cols-1 gap-2">
                       {recommendedEngineers.map(engineer => (
-                        <div key={engineer.id} className="flex items-center gap-2 p-2 border rounded bg-muted/30">
-                          <Avatar className="w-6 h-6">
-                            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                        <div key={engineer.id} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+                          <Avatar className="w-8 h-8">
+                            <AvatarFallback className="bg-primary text-primary-foreground">
                               {engineer.name[0]}
                             </AvatarFallback>
                           </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-xs truncate">{engineer.name}</p>
-                            <p className="text-xs text-muted-foreground truncate">
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{engineer.name}</p>
+                            <p className="text-xs text-muted-foreground">
                               {engineer.departmentId === 1 ? '技術部' : '保守部'} • 
                               {engineer.status === 'active' ? '稼働中' : '待機中'}
                             </p>
                           </div>
-                          <Badge className={`text-xs px-1 py-0 ${
+                          <Badge className={`text-xs ${
                             engineer.status === 'active' ? 'bg-green-100 text-green-700' :
                             'bg-orange-100 text-orange-700'
                           }`}>
@@ -906,7 +735,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                   </div>
                 )}
               </div>
-              <div className="flex justify-end gap-2 pt-2 border-t">
+              <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsNewWorkOrderOpen(false)}>
                   キャンセル
                 </Button>
@@ -923,16 +752,16 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
       <div className="flex flex-wrap gap-4 items-center">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">優先度:</span>
-          <Badge variant="outline" className="border-red-200 text-red-700">緊急: {filteredWorkOrders.filter(item => item.priority === 'urgent').length}件</Badge>
-          <Badge variant="outline" className="border-orange-200 text-orange-700">高: {filteredWorkOrders.filter(item => item.priority === 'high').length}件</Badge>
-          <Badge variant="outline" className="border-yellow-200 text-yellow-700">中: {filteredWorkOrders.filter(item => item.priority === 'medium').length}件</Badge>
-          <Badge variant="outline" className="border-gray-200 text-gray-700">低: {filteredWorkOrders.filter(item => item.priority === 'low').length}件</Badge>
+          <Badge variant="outline" className="border-red-200 text-red-700">緊急: 2件</Badge>
+          <Badge variant="outline" className="border-orange-200 text-orange-700">高: 5件</Badge>
+          <Badge variant="outline" className="border-yellow-200 text-yellow-700">中: 8件</Badge>
+          <Badge variant="outline" className="border-gray-200 text-gray-700">低: 3件</Badge>
         </div>
         <Separator orientation="vertical" className="h-6" />
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">エンジニア:</span>
-          <Badge variant="secondary" className="bg-green-100 text-green-700">稼働中: {firebaseEngineers.filter(e => e.status === 'active').length}人</Badge>
-          <Badge variant="secondary" className="bg-blue-100 text-blue-700">待機: {firebaseEngineers.filter(e => e.status === 'available').length}人</Badge>
+          <Badge variant="secondary" className="bg-green-100 text-green-700">稼働中: 15人</Badge>
+          <Badge variant="secondary" className="bg-blue-100 text-blue-700">待機: 9人</Badge>
         </div>
       </div>
 
@@ -1266,7 +1095,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                 <Clock className="w-5 h-5 text-orange-600" />
                 <div>
                   <p className="text-2xl font-bold text-orange-600">
-                    {firebaseEngineers.filter((e: Engineer) => e.status === 'busy').length}
+                    {firebaseEngineers.filter((e: any) => e.status === 'busy').length}
                   </p>
                   <p className="text-sm text-orange-600">作業中</p>
                 </div>
@@ -1278,7 +1107,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                 <CheckCircle className="w-5 h-5 text-green-600" />
                 <div>
                   <p className="text-2xl font-bold text-green-600">
-                    {firebaseEngineers.filter((e: Engineer) => e.status === 'available').length}
+                    {firebaseEngineers.filter((e: any) => e.status === 'available').length}
                   </p>
                   <p className="text-sm text-green-600">待機中</p>
                 </div>
@@ -1290,7 +1119,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
                 <Calendar className="w-5 h-5 text-purple-600" />
                 <div>
                   <p className="text-2xl font-bold text-purple-600">
-                    {firebaseEngineers.filter((e: Engineer) => e.status === 'on_leave').length}
+                    {firebaseEngineers.filter((e: any) => e.status === 'on_leave').length}
                   </p>
                   <p className="text-sm text-purple-600">休暇中</p>
                 </div>
@@ -1336,6 +1165,8 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
           </div>
         </div>
       </Card>
+      </div>
+      )}
 
       {/* エンジニア割り当てダイアログ */}
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
@@ -1352,11 +1183,11 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
               <div className="space-y-2">
                 <Label>担当エンジニアを選択</Label>
                 <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {firebaseEngineers.filter((e: Engineer) => e.status === 'available' || e.status === 'active').map((engineer: Engineer) => (
+                  {firebaseEngineers.filter((e: any) => e.status === 'available' || e.status === 'active').map((engineer: any) => (
                     <div 
                       key={engineer.id}
                       className="flex items-center gap-3 p-2 border rounded-lg cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleAssignEngineer(selectedWorkOrder?.firebaseId || selectedWorkOrder?.id.toString() || '', engineer.id)}
+                      onClick={() => handleAssignEngineer(engineer.id)}
                     >
                       <Avatar className="w-8 h-8">
                         <AvatarFallback className="bg-primary text-primary-foreground">

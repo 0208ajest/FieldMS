@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,22 +10,43 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ChevronLeft, ChevronRight, Plus, X, User, AlertTriangle } from 'lucide-react';
-import { User as UserType, Schedule, WorkOrder } from '@/types';
+import { User as UserType, Schedule, WorkOrder, FirestoreSchedule } from '@/types';
 import { schedules, engineers, workOrders } from '@/components/data/engineerData';
+import { 
+  addSchedule, 
+  getSchedules, 
+  updateSchedule, 
+  deleteSchedule,
+  getSchedulesByEngineer,
+  getEngineers
+} from '@/lib/firestore';
 
 interface ScheduleCalendarProps {
   currentUser: UserType;
-  engineerFilter?: number | null;
+  engineerFilter?: string | null;
 }
 
 export default function ScheduleCalendar({ currentUser: _currentUser, engineerFilter }: ScheduleCalendarProps) {
   const [view, setView] = useState<'month' | 'week' | 'day' | 'list'>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isNewScheduleOpen, setIsNewScheduleOpen] = useState(false);
-  const [schedulesList, setSchedulesList] = useState(schedules);
+  const [schedulesList, setSchedulesList] = useState<Schedule[]>([]);
   const [workOrdersList, setWorkOrdersList] = useState(workOrders);
   const [conflictAlert, setConflictAlert] = useState<string | null>(null);
   const [recommendedEngineers, setRecommendedEngineers] = useState<typeof engineers>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // エンジニアデータ（Firebaseから取得）
+  const [firebaseEngineers, setFirebaseEngineers] = useState<typeof engineers>([]);
+  
+  // スケジュール詳細表示
+  const [isScheduleDetailsOpen, setIsScheduleDetailsOpen] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+  
+  // スケジュール編集
+  const [isEditScheduleOpen, setIsEditScheduleOpen] = useState(false);
+  const [editSchedule, setEditSchedule] = useState<Schedule | null>(null);
 
   const [newSchedule, setNewSchedule] = useState({
     title: '',
@@ -42,6 +63,70 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
     customerName: '',
     customerPhone: ''
   });
+
+  // Firebaseからデータを取得
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log('📅 データ一覧を取得中...');
+        
+        // エンジニアデータを取得
+        const firestoreEngineers = await getEngineers();
+        console.log('👨‍💻 取得したFirestoreエンジニア:', firestoreEngineers);
+        
+        const convertedEngineers = firestoreEngineers.map((firestoreEngineer: any) => ({
+          id: firestoreEngineer.id, // FirebaseのIDをそのまま使用
+          name: firestoreEngineer.name,
+          email: firestoreEngineer.email,
+          phone: firestoreEngineer.phone || '',
+          departmentId: parseInt(firestoreEngineer.companyId) || 1,
+          skills: firestoreEngineer.skills,
+          status: firestoreEngineer.status,
+          totalProjects: 0, // 後で計算
+          completedProjects: 0, // 後で計算
+          createdAt: firestoreEngineer.createdAt,
+          updatedAt: firestoreEngineer.updatedAt,
+        }));
+        setFirebaseEngineers(convertedEngineers);
+        
+        // スケジュールデータを取得
+        const firestoreSchedules = await getSchedules();
+        console.log('📅 取得したFirestoreスケジュール:', firestoreSchedules);
+        
+        // FirestoreScheduleをSchedule型に変換
+        const convertedSchedules: Schedule[] = firestoreSchedules.map(firestoreSchedule => ({
+          id: parseInt(firestoreSchedule.id) || 0, // 数値IDに変換（既存のUIとの互換性のため）
+          title: firestoreSchedule.title,
+          description: firestoreSchedule.description,
+          engineerId: firestoreSchedule.engineerId || '', // 文字列IDをそのまま使用
+          engineerName: firestoreSchedule.engineerName || '',
+          startDate: firestoreSchedule.startTime.toISOString(),
+          endDate: firestoreSchedule.endTime.toISOString(),
+          status: firestoreSchedule.status,
+          priority: firestoreSchedule.priority || 'medium',
+          workOrderId: parseInt(firestoreSchedule.workOrderId || '0') || 0,
+          location: firestoreSchedule.location,
+          customerName: '',
+          customerPhone: '',
+          // Firebaseの実際のドキュメントIDを保持
+          firebaseId: firestoreSchedule.id
+        }));
+        
+        console.log('📅 変換後のスケジュールデータ:', convertedSchedules);
+        setSchedulesList(convertedSchedules);
+      } catch (err) {
+        console.error('❌ データ取得エラー:', err);
+        setError(`データの取得に失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   // 現在の月のカレンダーデータを生成
   const generateCalendarDays = () => {
@@ -68,7 +153,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
         fullDate: new Date(current),
         schedules: daySchedules.map(schedule => ({
           ...schedule,
-          engineerName: engineers.find(e => e.id === schedule.engineerId)?.name || '不明',
+          engineerName: firebaseEngineers.find(e => e.id === schedule.engineerId)?.name || '不明',
           startTime: new Date(schedule.startDate).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
         }))
       });
@@ -80,7 +165,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
   };
 
   // スケジュール重複チェック
-  const checkScheduleConflict = (engineerId: number, startDateTime: Date, endDateTime: Date) => {
+  const checkScheduleConflict = (engineerId: string, startDateTime: Date, endDateTime: Date) => {
     const conflicts = schedulesList.filter(schedule => {
       if (schedule.engineerId !== engineerId) return false;
       
@@ -94,77 +179,96 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
   };
 
   // 新規スケジュール作成
-  const handleCreateSchedule = () => {
-    if (!newSchedule.engineerId || !newSchedule.startDate || !newSchedule.startTime) {
-      setConflictAlert('必須項目を入力してください');
-      return;
+  const handleCreateSchedule = async () => {
+    try {
+      if (!newSchedule.engineerId || !newSchedule.startDate || !newSchedule.startTime) {
+        setConflictAlert('必須項目を入力してください');
+        return;
+      }
+
+      const startDateTime = new Date(`${newSchedule.startDate}T${newSchedule.startTime}`);
+      const endDateTime = new Date(`${newSchedule.endDate || newSchedule.startDate}T${newSchedule.endTime || newSchedule.startTime}`);
+      
+      const conflicts = checkScheduleConflict(newSchedule.engineerId, startDateTime, endDateTime);
+      
+      if (conflicts.length > 0) {
+        const engineerName = firebaseEngineers.find(e => e.id === newSchedule.engineerId)?.name;
+        setConflictAlert(`${engineerName}エンジニアのスケジュールが重複しています。時間を調整してください。`);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      // Firestoreに保存するスケジュールデータを作成
+      const scheduleData = {
+        title: newSchedule.title,
+        description: newSchedule.description,
+        startTime: startDateTime,
+        endTime: endDateTime,
+        engineerId: newSchedule.engineerId,
+        engineerName: firebaseEngineers.find(e => e.id === newSchedule.engineerId)?.name || '',
+        workOrderId: '', // 作業指示IDは後で設定
+        status: newSchedule.status as 'scheduled' | 'in_progress' | 'completed' | 'cancelled',
+        location: newSchedule.location,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      console.log('📅 新規スケジュール追加データ:', scheduleData);
+
+      // Firestoreにスケジュールを追加
+      const newScheduleId = await addSchedule(scheduleData);
+      console.log('✅ 新しいスケジュールが追加されました, ID:', newScheduleId);
+
+      // スケジュール一覧を再取得
+      const updatedFirestoreSchedules = await getSchedules();
+      const updatedConvertedSchedules: Schedule[] = updatedFirestoreSchedules.map(firestoreSchedule => ({
+        id: parseInt(firestoreSchedule.id) || 0,
+        title: firestoreSchedule.title,
+        description: firestoreSchedule.description,
+          engineerId: firestoreSchedule.engineerId || '',
+        engineerName: firestoreSchedule.engineerName || '',
+        startDate: firestoreSchedule.startTime.toISOString(),
+        endDate: firestoreSchedule.endTime.toISOString(),
+        status: firestoreSchedule.status,
+        priority: firestoreSchedule.priority || 'medium',
+        workOrderId: parseInt(firestoreSchedule.workOrderId || '0') || 0,
+        location: firestoreSchedule.location,
+        customerName: '',
+        customerPhone: '',
+        firebaseId: firestoreSchedule.id
+      }));
+      
+      setSchedulesList(updatedConvertedSchedules);
+      setIsNewScheduleOpen(false);
+      setConflictAlert(null);
+      setRecommendedEngineers([]);
+      setNewSchedule({
+        title: '',
+        description: '',
+        engineerId: '',
+        startDate: '',
+        endDate: '',
+        startTime: '',
+        endTime: '',
+        status: 'scheduled',
+        priority: 'medium',
+        estimatedDuration: '',
+        location: '',
+        customerName: '',
+        customerPhone: ''
+      });
+    } catch (err) {
+      console.error('❌ スケジュール追加エラー:', err);
+      setError(`スケジュールの追加に失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
     }
-
-    const startDateTime = new Date(`${newSchedule.startDate}T${newSchedule.startTime}`);
-    const endDateTime = new Date(`${newSchedule.endDate || newSchedule.startDate}T${newSchedule.endTime || newSchedule.startTime}`);
-    
-    const conflicts = checkScheduleConflict(parseInt(newSchedule.engineerId), startDateTime, endDateTime);
-    
-    if (conflicts.length > 0) {
-      const engineerName = engineers.find(e => e.id === parseInt(newSchedule.engineerId))?.name;
-      setConflictAlert(`${engineerName}エンジニアのスケジュールが重複しています。時間を調整してください。`);
-      return;
-    }
-
-    // 作業指示を作成
-    const workOrder: WorkOrder = {
-      id: workOrdersList.length + 1,
-      title: newSchedule.title,
-      description: newSchedule.description,
-      location: newSchedule.location,
-      priority: newSchedule.priority as 'low' | 'medium' | 'high' | 'urgent',
-      estimatedDuration: parseInt(newSchedule.estimatedDuration) || 60,
-      dueDate: endDateTime,
-      status: 'pending',
-      assignedEngineerId: parseInt(newSchedule.engineerId),
-      progress: 0,
-      createdAt: new Date(),
-      completedAt: null
-    };
-
-    // スケジュールを作成
-    const schedule: Schedule = {
-      id: schedulesList.length + 1,
-      title: newSchedule.title,
-      description: newSchedule.description,
-      engineerId: parseInt(newSchedule.engineerId),
-      startDate: startDateTime.toISOString(),
-      endDate: endDateTime.toISOString(),
-      status: newSchedule.status as 'scheduled' | 'in_progress' | 'completed' | 'cancelled',
-      priority: newSchedule.priority as 'low' | 'medium' | 'high' | 'urgent',
-      workOrderId: workOrder.id
-    };
-
-    // 作業指示とスケジュールを同時に追加
-    setWorkOrdersList([...workOrdersList, workOrder]);
-    setSchedulesList([...schedulesList, schedule]);
-    setIsNewScheduleOpen(false);
-    setConflictAlert(null);
-    setRecommendedEngineers([]);
-    setNewSchedule({
-      title: '',
-      description: '',
-      engineerId: '',
-      startDate: '',
-      endDate: '',
-      startTime: '',
-      endTime: '',
-      status: 'scheduled',
-      priority: 'medium',
-      estimatedDuration: '',
-      location: '',
-      customerName: '',
-      customerPhone: ''
-    });
   };
 
   const calendarDays = generateCalendarDays();
-  const filteredEngineer = engineerFilter ? engineers.find(e => e.id === engineerFilter) : null;
+  const filteredEngineer = engineerFilter ? firebaseEngineers.find(e => e.id === engineerFilter) : null;
 
   // 週間表示用のデータ生成
   const generateWeekData = () => {
@@ -211,32 +315,95 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
     });
   };
 
-  // 推奨エンジニアを取得
-  const getRecommendedEngineers = (date: string) => {
+  // 推奨エンジニアを取得（該当日時の稼働状況を動的チェック）
+  const getRecommendedEngineers = (date: string, startTime?: string, endTime?: string) => {
     if (!date) {
       setRecommendedEngineers([]);
       return;
     }
 
-    // 期限日時に空いているエンジニアを取得
-    const availableEngineers = engineers.filter(engineer => {
-      // 待機中または稼働中のエンジニアを対象
-      return engineer.status === 'available' || engineer.status === 'active';
+    // 該当日時のスケジュール時間を計算
+    const scheduleStartTime = startTime || '09:00';
+    const scheduleEndTime = endTime || '18:00';
+    const scheduleStartDateTime = new Date(`${date}T${scheduleStartTime}`);
+    const scheduleEndDateTime = new Date(`${date}T${scheduleEndTime}`);
+
+    console.log('🔍 推奨エンジニア検索:', { 
+      date, 
+      startTime: scheduleStartTime, 
+      endTime: scheduleEndTime,
+      scheduleStartDateTime,
+      scheduleEndDateTime
     });
 
-    // 優先度に基づいてソート（稼働中のエンジニアを優先）
-    const sortedEngineers = availableEngineers.sort((a, b) => {
-      if (a.status === 'available' && b.status === 'active') return 1;
-      if (a.status === 'active' && b.status === 'available') return -1;
-      return 0;
+    // 各エンジニアの該当日時の稼働状況をチェック
+    const engineersWithAvailability = firebaseEngineers.map(engineer => {
+      // 該当エンジニアの該当日時のスケジュールを取得
+      const engineerSchedules = schedulesList.filter(schedule => {
+        if (schedule.engineerId !== engineer.id) return false;
+        
+        const scheduleDate = new Date(schedule.startDate);
+        const scheduleEndDate = new Date(schedule.endDate);
+        
+        // 同じ日付のスケジュールをチェック
+        return scheduleDate.toDateString() === scheduleStartDateTime.toDateString() ||
+               scheduleEndDate.toDateString() === scheduleStartDateTime.toDateString();
+      });
+
+      // 時間重複をチェック
+      const hasConflict = engineerSchedules.some(schedule => {
+        const existingStart = new Date(schedule.startDate);
+        const existingEnd = new Date(schedule.endDate);
+        
+        // 時間が重複しているかチェック
+        return (scheduleStartDateTime < existingEnd && scheduleEndDateTime > existingStart);
+      });
+
+      // 稼働状況を決定（時間範囲での重複のみをチェック）
+      let availabilityStatus: 'available' | 'busy' | 'partial';
+      if (hasConflict) {
+        availabilityStatus = 'busy';
+      } else {
+        availabilityStatus = 'available'; // 時間重複がなければ空きあり
+      }
+
+      return {
+        ...engineer,
+        availabilityStatus,
+        conflictCount: engineerSchedules.length
+      };
     });
 
+    // 稼働状況に基づいてソート（空いているエンジニアを優先）
+    const sortedEngineers = engineersWithAvailability.sort((a, b) => {
+      const statusPriority = { 'available': 0, 'partial': 1, 'busy': 2 };
+      const aPriority = statusPriority[a.availabilityStatus];
+      const bPriority = statusPriority[b.availabilityStatus];
+      
+      if (aPriority !== bPriority) {
+        return aPriority - bPriority;
+      }
+      
+      // 同じ稼働状況の場合は、スケジュール数が少ない方を優先
+      return a.conflictCount - b.conflictCount;
+    });
+
+    console.log('🔍 推奨エンジニア結果:', sortedEngineers);
     setRecommendedEngineers(sortedEngineers.slice(0, 3)); // 上位3名をレコメンド
   };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
-    newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
+    if (view === 'week') {
+      // 週間表示の場合は7日ずつ移動
+      newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7));
+    } else if (view === 'day') {
+      // 日間表示の場合は1日ずつ移動
+      newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1));
+    } else {
+      // 月間表示の場合は1ヶ月ずつ移動
+      newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1));
+    }
     setCurrentDate(newDate);
   };
 
@@ -252,44 +419,145 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
       endDate: day.fullDate.toISOString().split('T')[0]
     });
     setIsNewScheduleOpen(true);
-    getRecommendedEngineers(day.fullDate.toISOString().split('T')[0]);
+    getRecommendedEngineers(day.fullDate.toISOString().split('T')[0], newSchedule.startTime, newSchedule.endTime);
   };
 
   // 開始日の変更ハンドラー
   const handleStartDateChange = (startDate: string) => {
     setNewSchedule({...newSchedule, startDate});
-    if (startDate && newSchedule.startTime) {
-      getRecommendedEngineers(startDate);
+    if (startDate) {
+      getRecommendedEngineers(startDate, newSchedule.startTime, newSchedule.endTime);
     }
   };
 
   // 開始時間の変更ハンドラー
   const handleStartTimeChange = (startTime: string) => {
     setNewSchedule({...newSchedule, startTime});
-    if (newSchedule.startDate && startTime) {
-      getRecommendedEngineers(newSchedule.startDate);
+    if (newSchedule.startDate) {
+      getRecommendedEngineers(newSchedule.startDate, startTime, newSchedule.endTime);
     }
   };
 
   // 終了日の変更ハンドラー
   const handleEndDateChange = (endDate: string) => {
     setNewSchedule({...newSchedule, endDate});
-    if (endDate && newSchedule.endTime) {
-      getRecommendedEngineers(endDate);
+    if (endDate) {
+      getRecommendedEngineers(endDate, newSchedule.startTime, newSchedule.endTime);
     }
   };
 
   // 終了時間の変更ハンドラー
   const handleEndTimeChange = (endTime: string) => {
     setNewSchedule({...newSchedule, endTime});
-    if (newSchedule.endDate && endTime) {
-      getRecommendedEngineers(newSchedule.endDate);
+    if (newSchedule.startDate) {
+      getRecommendedEngineers(newSchedule.startDate, newSchedule.startTime, endTime);
     }
   };
 
   const openScheduleDetails = (schedule: Schedule) => {
     console.log('スケジュール詳細:', schedule);
+    setSelectedSchedule(schedule);
+    setIsScheduleDetailsOpen(true);
   };
+
+  const openEditSchedule = (schedule: Schedule) => {
+    console.log('スケジュール編集:', schedule);
+    setEditSchedule(schedule);
+    setIsEditScheduleOpen(true);
+  };
+
+  const handleUpdateSchedule = async () => {
+    if (!editSchedule) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Firebaseの実際のドキュメントIDを使用
+      const scheduleId = editSchedule.firebaseId || editSchedule.id.toString();
+      
+      if (!scheduleId || scheduleId === '0') {
+        throw new Error('スケジュールIDが無効です');
+      }
+      
+      console.log('📅 スケジュール更新データ:', { 
+        originalId: editSchedule.id, 
+        scheduleId, 
+        editSchedule 
+      });
+      
+      const updateData = {
+        title: editSchedule.title,
+        description: editSchedule.description,
+        engineerId: editSchedule.engineerId.toString(),
+        engineerName: editSchedule.engineerName,
+        startTime: new Date(editSchedule.startDate),
+        endTime: new Date(editSchedule.endDate),
+        status: editSchedule.status,
+        location: editSchedule.location,
+        updatedAt: new Date(),
+      };
+
+      // Firestoreのスケジュールを更新
+      await updateSchedule(scheduleId, updateData);
+      console.log('✅ スケジュールが更新されました');
+
+      // スケジュール一覧を再取得
+      const updatedFirestoreSchedules = await getSchedules();
+      const updatedConvertedSchedules: Schedule[] = updatedFirestoreSchedules.map(firestoreSchedule => ({
+        id: parseInt(firestoreSchedule.id) || 0,
+        title: firestoreSchedule.title,
+        description: firestoreSchedule.description,
+          engineerId: firestoreSchedule.engineerId || '',
+        engineerName: firestoreSchedule.engineerName || '',
+        startDate: firestoreSchedule.startTime.toISOString(),
+        endDate: firestoreSchedule.endTime.toISOString(),
+        status: firestoreSchedule.status,
+        priority: firestoreSchedule.priority || 'medium',
+        workOrderId: parseInt(firestoreSchedule.workOrderId || '0') || 0,
+        location: firestoreSchedule.location,
+        customerName: '',
+        customerPhone: '',
+        firebaseId: firestoreSchedule.id
+      }));
+      
+      setSchedulesList(updatedConvertedSchedules);
+      setIsEditScheduleOpen(false);
+      setEditSchedule(null);
+    } catch (err) {
+      console.error('❌ スケジュール更新エラー:', err);
+      setError(`スケジュールの更新に失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ローディング状態
+  if (loading && schedulesList.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">スケジュールを読み込み中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // エラー状態
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertTriangle className="h-8 w-8 text-destructive mx-auto mb-4" />
+          <p className="text-destructive mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>
+            再読み込み
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -396,7 +664,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                         <SelectValue placeholder="エンジニアを選択" />
                       </SelectTrigger>
                       <SelectContent>
-                        {engineers.map(engineer => (
+                        {firebaseEngineers.map(engineer => (
                           <SelectItem key={engineer.id} value={engineer.id.toString()}>
                             {engineer.name}
                           </SelectItem>
@@ -504,24 +772,30 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                 {/* 推奨エンジニア表示 */}
                 {recommendedEngineers.length > 0 && (
                   <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <h4 className="text-sm font-medium text-blue-900 mb-2">推奨エンジニア</h4>
+                    <h4 className="text-sm font-medium text-blue-900 mb-2">
+                      推奨エンジニア（{newSchedule.startDate} {newSchedule.startTime || '09:00'} - {newSchedule.endTime || '18:00'}）
+                    </h4>
                     <div className="space-y-2">
-                      {recommendedEngineers.map((engineer) => (
+                      {recommendedEngineers.map((engineer: any) => (
                         <div key={engineer.id} className="flex items-center justify-between p-2 bg-white rounded border">
                           <div>
                             <span className="font-medium text-sm">{engineer.name}</span>
                             <span className="text-xs text-gray-500 ml-2">
                               {engineer.departmentId === 1 ? '技術部' : '保守部'}
                             </span>
+                            {engineer.conflictCount > 0 && (
+                              <span className="text-xs text-orange-600 ml-2">
+                                （{engineer.conflictCount}件の予定あり）
+                              </span>
+                            )}
                           </div>
                           <Badge className={
-                            engineer.status === 'available' ? 'bg-green-100 text-green-700' :
-                            engineer.status === 'active' ? 'bg-blue-100 text-blue-700' :
+                            engineer.availabilityStatus === 'available' ? 'bg-green-100 text-green-700' :
+                            engineer.availabilityStatus === 'busy' ? 'bg-red-100 text-red-700' :
                             'bg-gray-100 text-gray-700'
                           }>
-                            {engineer.status === 'available' ? '待機' :
-                             engineer.status === 'active' ? '稼働中' :
-                             engineer.status}
+                            {engineer.availabilityStatus === 'available' ? '空きあり' :
+                             engineer.availabilityStatus === 'busy' ? '稼働中' : '不明'}
                           </Badge>
                         </div>
                       ))}
@@ -566,7 +840,16 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                 <div 
                   key={index} 
                   className="min-h-32 p-2 border-r border-b last-in-row:border-r-0 last-row:border-b-0 cursor-pointer hover:bg-muted/50"
-                  onClick={() => openNewScheduleDialog(day)}
+                  onClick={(e) => {
+                    // 予定がある場合は詳細表示、ない場合は新規登録
+                    if (day.schedules.length > 0) {
+                      // 予定がある場合は最初の予定の詳細を表示
+                      openScheduleDetails(day.schedules[0]);
+                    } else {
+                      // 予定がない場合は新規登録
+                      openNewScheduleDialog(day);
+                    }
+                  }}
                 >
                   {/* 日付番号 */}
                   <div className="flex justify-between items-start mb-2">
@@ -635,7 +918,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
             </div>
             
             <div className="grid grid-cols-8">
-              {engineers.map((engineer) => (
+              {firebaseEngineers.map((engineer) => (
                 <React.Fragment key={engineer.id}>
                   <div className="p-4 border-r border-b bg-muted/30">
                     <div className="font-medium text-sm">{engineer.name}</div>
@@ -645,13 +928,27 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                     <div 
                       key={dateIndex} 
                       className="p-2 border-r border-b last:border-r-0 min-h-20 cursor-pointer hover:bg-muted/30"
-                      onClick={() => openNewScheduleDialog({
-                        date: date.getDate(),
-                        isCurrentMonth: true,
-                        isToday: date.toDateString() === new Date().toDateString(),
-                        fullDate: date,
-                        schedules: []
-                      })}
+                      onClick={(e) => {
+                        // その日のスケジュールを取得
+                        const daySchedules = schedulesList.filter(schedule => {
+                          const scheduleDate = new Date(schedule.startDate);
+                          return scheduleDate.toDateString() === date.toDateString() && schedule.engineerId === engineer.id;
+                        });
+                        
+                        if (daySchedules.length > 0) {
+                          // 予定がある場合は最初の予定の詳細を表示
+                          openScheduleDetails(daySchedules[0]);
+                        } else {
+                          // 予定がない場合は新規登録
+                          openNewScheduleDialog({
+                            date: date.getDate(),
+                            isCurrentMonth: true,
+                            isToday: date.toDateString() === new Date().toDateString(),
+                            fullDate: date,
+                            schedules: []
+                          });
+                        }
+                      }}
                     >
                       {getSchedulesForDate(date).filter(schedule => schedule.engineerId === engineer.id).map((schedule) => (
                         <div 
@@ -681,6 +978,18 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
         {/* 日間表示 */}
         {view === 'day' && (
           <div className="p-0">
+            {/* 日付表示エリア */}
+            <div className="p-4 bg-muted/30 border-b">
+              <h3 className="text-lg font-semibold text-center">
+                {currentDate.toLocaleDateString('ja-JP', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  weekday: 'long'
+                })}
+              </h3>
+            </div>
+            
             <div className="grid grid-cols-25 border-b">
               <div className="p-4 text-center text-sm font-medium border-r">
                 エンジニア
@@ -693,7 +1002,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
             </div>
             
             <div className="grid grid-cols-25">
-              {engineers.map((engineer) => (
+              {firebaseEngineers.map((engineer) => (
                 <React.Fragment key={engineer.id}>
                   <div className="p-4 border-r border-b bg-muted/30">
                     <div className="font-medium text-sm">{engineer.name}</div>
@@ -703,16 +1012,31 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                     <div 
                       key={hour} 
                       className="p-1 border-r border-b last:border-r-0 min-h-12 cursor-pointer hover:bg-muted/30"
-                      onClick={() => {
+                      onClick={(e) => {
                         const date = new Date(currentDate);
                         date.setHours(hour, 0, 0, 0);
-                        openNewScheduleDialog({
-                          date: date.getDate(),
-                          isCurrentMonth: true,
-                          isToday: date.toDateString() === new Date().toDateString(),
-                          fullDate: date,
-                          schedules: []
+                        
+                        // その時間のスケジュールを取得
+                        const hourSchedules = schedulesList.filter(schedule => {
+                          const scheduleDate = new Date(schedule.startDate);
+                          return scheduleDate.toDateString() === date.toDateString() && 
+                                 schedule.engineerId === engineer.id &&
+                                 scheduleDate.getHours() === hour;
                         });
+                        
+                        if (hourSchedules.length > 0) {
+                          // 予定がある場合は最初の予定の詳細を表示
+                          openScheduleDetails(hourSchedules[0]);
+                        } else {
+                          // 予定がない場合は新規登録
+                          openNewScheduleDialog({
+                            date: date.getDate(),
+                            isCurrentMonth: true,
+                            isToday: date.toDateString() === new Date().toDateString(),
+                            fullDate: date,
+                            schedules: []
+                          });
+                        }
                       }}
                     >
                       {getSchedulesForHour(currentDate, hour).filter(schedule => schedule.engineerId === engineer.id).map((schedule) => (
@@ -748,7 +1072,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
               .filter(schedule => !engineerFilter || schedule.engineerId === engineerFilter)
               .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
               .map((schedule) => {
-                const engineer = engineers.find(e => e.id === schedule.engineerId);
+                const engineer = firebaseEngineers.find(e => e.id === schedule.engineerId);
                 return (
                   <div key={schedule.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50">
                     <div className="flex items-center gap-4">
@@ -777,6 +1101,22 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                          schedule.status === 'cancelled' ? 'キャンセル' :
                          '予定'}
                       </Badge>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openScheduleDetails(schedule)}
+                        >
+                          詳細
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEditSchedule(schedule)}
+                        >
+                          編集
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -784,6 +1124,305 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
           </div>
         </div>
       </Card>
+
+      {/* スケジュール詳細表示ダイアログ */}
+      <Dialog open={isScheduleDetailsOpen} onOpenChange={setIsScheduleDetailsOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>スケジュール詳細</DialogTitle>
+          </DialogHeader>
+          {selectedSchedule && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="detail-title">タイトル</Label>
+                  <Input
+                    id="detail-title"
+                    value={selectedSchedule.title}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="detail-engineer">担当エンジニア</Label>
+                  <Input
+                    id="detail-engineer"
+                    value={selectedSchedule.engineerName || firebaseEngineers.find(e => e.id === selectedSchedule.engineerId)?.name || ''}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="detail-description">詳細</Label>
+                <Textarea
+                  id="detail-description"
+                  value={selectedSchedule.description}
+                  readOnly
+                  className="bg-gray-50"
+                  rows={3}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="detail-start-time">開始時間</Label>
+                  <Input
+                    id="detail-start-time"
+                    value={new Date(selectedSchedule.startDate).toLocaleString('ja-JP', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="detail-end-time">終了時間</Label>
+                  <Input
+                    id="detail-end-time"
+                    value={new Date(selectedSchedule.endDate).toLocaleString('ja-JP', {
+                      year: 'numeric',
+                      month: '2-digit',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="detail-duration">予想時間</Label>
+                  <Input
+                    id="detail-duration"
+                    value={selectedSchedule.estimatedDuration ? `${selectedSchedule.estimatedDuration}分` : '未設定'}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="detail-location">場所</Label>
+                  <Input
+                    id="detail-location"
+                    value={selectedSchedule.location || '未設定'}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="detail-customer-name">顧客名</Label>
+                  <Input
+                    id="detail-customer-name"
+                    value={selectedSchedule.customerName || '未設定'}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="detail-customer-phone">顧客電話</Label>
+                  <Input
+                    id="detail-customer-phone"
+                    value={selectedSchedule.customerPhone || '未設定'}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="detail-priority">優先度</Label>
+                  <Input
+                    id="detail-priority"
+                    value={selectedSchedule.priority === 'urgent' ? '緊急' : 
+                           selectedSchedule.priority === 'high' ? '高' :
+                           selectedSchedule.priority === 'medium' ? '中' : '低'}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="detail-status">ステータス</Label>
+                  <Input
+                    id="detail-status"
+                    value={selectedSchedule.status === 'scheduled' ? '予定' :
+                           selectedSchedule.status === 'in_progress' ? '進行中' :
+                           selectedSchedule.status === 'completed' ? '完了' : 'キャンセル'}
+                    readOnly
+                    className="bg-gray-50"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                if (selectedSchedule) {
+                  openEditSchedule(selectedSchedule);
+                  setIsScheduleDetailsOpen(false);
+                }
+              }}
+            >
+              編集
+            </Button>
+            <Button onClick={() => setIsScheduleDetailsOpen(false)}>
+              閉じる
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* スケジュール編集ダイアログ */}
+      <Dialog open={isEditScheduleOpen} onOpenChange={setIsEditScheduleOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>スケジュール編集</DialogTitle>
+          </DialogHeader>
+          {editSchedule && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-title">タイトル</Label>
+                  <Input
+                    id="edit-title"
+                    value={editSchedule.title}
+                    onChange={(e) => setEditSchedule({...editSchedule, title: e.target.value})}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-engineer">担当エンジニア</Label>
+                  <Select
+                    value={editSchedule.engineerId}
+                    onValueChange={(value) => {
+                      console.log('🔍 エンジニア選択:', { value, firebaseEngineers });
+                      const engineer = firebaseEngineers.find(e => e.id === value);
+                      console.log('🔍 見つかったエンジニア:', engineer);
+                      setEditSchedule({
+                        ...editSchedule,
+                        engineerId: value, // 文字列IDをそのまま使用
+                        engineerName: engineer?.name || ''
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="エンジニアを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {firebaseEngineers.map((engineer) => (
+                        <SelectItem key={engineer.id} value={engineer.id}>
+                          {engineer.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="edit-description">詳細</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editSchedule.description}
+                  onChange={(e) => setEditSchedule({...editSchedule, description: e.target.value})}
+                  rows={3}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-start-date">開始日</Label>
+                  <Input
+                    id="edit-start-date"
+                    type="date"
+                    value={editSchedule.startDate.split('T')[0]}
+                    onChange={(e) => setEditSchedule({...editSchedule, startDate: e.target.value + 'T' + editSchedule.startDate.split('T')[1]})}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-end-date">終了日</Label>
+                  <Input
+                    id="edit-end-date"
+                    type="date"
+                    value={editSchedule.endDate.split('T')[0]}
+                    onChange={(e) => setEditSchedule({...editSchedule, endDate: e.target.value + 'T' + editSchedule.endDate.split('T')[1]})}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-start-time">開始時間</Label>
+                  <Input
+                    id="edit-start-time"
+                    type="time"
+                    value={editSchedule.startDate.split('T')[1]?.substring(0, 5) || ''}
+                    onChange={(e) => setEditSchedule({...editSchedule, startDate: editSchedule.startDate.split('T')[0] + 'T' + e.target.value + ':00.000Z'})}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-end-time">終了時間</Label>
+                  <Input
+                    id="edit-end-time"
+                    type="time"
+                    value={editSchedule.endDate.split('T')[1]?.substring(0, 5) || ''}
+                    onChange={(e) => setEditSchedule({...editSchedule, endDate: editSchedule.endDate.split('T')[0] + 'T' + e.target.value + ':00.000Z'})}
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-location">場所</Label>
+                  <Input
+                    id="edit-location"
+                    value={editSchedule.location || ''}
+                    onChange={(e) => setEditSchedule({...editSchedule, location: e.target.value})}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-status">ステータス</Label>
+                  <Select
+                    value={editSchedule.status}
+                    onValueChange={(value) => setEditSchedule({...editSchedule, status: value as 'scheduled' | 'in_progress' | 'completed' | 'cancelled'})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="ステータスを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="scheduled">予定</SelectItem>
+                      <SelectItem value="in_progress">進行中</SelectItem>
+                      <SelectItem value="completed">完了</SelectItem>
+                      <SelectItem value="cancelled">キャンセル</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsEditScheduleOpen(false)}>
+              キャンセル
+            </Button>
+            <Button onClick={handleUpdateSchedule}>
+              更新
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

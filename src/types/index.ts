@@ -1,5 +1,5 @@
 export interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
   phone?: string;
@@ -27,7 +27,7 @@ export interface Notification {
 
 // Firebase用の型定義
 export interface FirestoreUser {
-  id: string;
+  id: string; // FirestoreのドキュメントID
   email: string;
   name: string;
   phone?: string;
@@ -64,6 +64,7 @@ export interface FirestoreSchedule {
   engineerName?: string;
   workOrderId?: string;
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
   location: string;
   createdAt: Date;
   updatedAt: Date;
@@ -83,6 +84,7 @@ export interface FirestoreWorkOrder {
   createdAt: Date;
   updatedAt: Date;
   dueDate?: Date;
+  completedAt?: Date;
 }
 
 export interface Company {
@@ -103,7 +105,7 @@ export interface Department {
 }
 
 export interface Engineer {
-  id: number;
+  id: string; // FirebaseのエンジニアID（文字列）
   name: string;
   email: string;
   phone: string;
@@ -116,18 +118,28 @@ export interface Engineer {
     location: string;
   };
   progress?: number;
+  totalProjects?: number;
+  completedProjects?: number;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface Schedule {
   id: number;
   title: string;
   description: string;
-  engineerId: number;
+  engineerId: string; // FirebaseのエンジニアID（文字列）
+  engineerName?: string;
   startDate: string;
   endDate: string;
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   workOrderId?: number | null;
+  location?: string;
+  estimatedDuration?: string;
+  customerName?: string;
+  customerPhone?: string;
+  firebaseId?: string; // Firebaseの実際のドキュメントID
 }
 
 export interface WorkOrder {
@@ -137,10 +149,11 @@ export interface WorkOrder {
   location: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   estimatedDuration: number;
-  dueDate: Date;
-  status: 'pending' | 'assigned' | 'in_progress' | 'completed';
+  dueDate?: Date;
+  status: 'pending' | 'assigned' | 'in_progress' | 'completed' | 'cancelled';
   assignedEngineerId?: number | null;
   progress?: number;
   createdAt: Date;
   completedAt?: Date | null;
+  firebaseId?: string; // Firebaseの実際のドキュメントID
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell, AlertCircle, Calendar } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,53 +13,115 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { Notification } from '@/types';
+import { getWorkOrders, getSchedules } from '@/lib/firestore';
 
 interface NotificationSystemProps {
+  onNavigateToDispatch?: () => void;
   onNavigateToSchedule?: (scheduleId: number, engineerId?: number) => void;
 }
 
-export default function NotificationSystem({ onNavigateToSchedule }: NotificationSystemProps) {
+export default function NotificationSystem({ onNavigateToDispatch, onNavigateToSchedule }: NotificationSystemProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // モック通知データ
-  const mockNotifications: Notification[] = [
-    {
-      id: 1,
-      type: 'unassigned_schedule',
-      title: '未割り当ての予定があります',
-      description: 'システムメンテナンス作業 - エンジニアの割り当てが必要です',
-      scheduleId: 101,
-      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2時間前
-      read: false,
-    },
-    {
-      id: 2,
-      type: 'assigned_schedule',
-      title: '新しい予定が割り当てられました',
-      description: '緊急対応作業 - 明日の午前中に実施予定',
-      scheduleId: 102,
-      engineerId: 1,
-      engineerName: '田中 太郎',
-      createdAt: new Date(Date.now() - 30 * 60 * 1000), // 30分前
-      read: false,
-    },
-    {
-      id: 3,
-      type: 'unassigned_schedule',
-      title: '未割り当ての予定があります',
-      description: '定期点検作業 - 来週月曜日の実施予定',
-      scheduleId: 103,
-      createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4時間前
-      read: true,
-    },
-  ];
+  // 実際のデータから通知を生成
+  useEffect(() => {
+    const generateNotifications = async () => {
+      try {
+        setLoading(true);
+        const [workOrders, schedules] = await Promise.all([
+          getWorkOrders(),
+          getSchedules()
+        ]);
 
-  const unreadCount = mockNotifications.filter(n => !n.read).length;
+        const generatedNotifications: Notification[] = [];
+
+        // 未割り当ての作業指示から通知を生成
+        const unassignedWorkOrders = workOrders.filter(wo => wo.status === 'pending');
+        unassignedWorkOrders.forEach((workOrder, index) => {
+          generatedNotifications.push({
+            id: `unassigned-${workOrder.id}`,
+            type: 'unassigned_schedule',
+            title: '未割り当ての予定があります',
+            description: `${workOrder.title} - エンジニアの割り当てが必要です`,
+            scheduleId: workOrder.id, // 文字列IDをそのまま使用
+            createdAt: workOrder.createdAt,
+            read: false,
+          });
+        });
+
+        // 最近割り当てられたスケジュールから通知を生成
+        const recentAssignedSchedules = schedules
+          .filter(s => s.status === 'scheduled' && s.engineerId)
+          .sort((a, b) => new Date(b.createdAt || new Date()).getTime() - new Date(a.createdAt || new Date()).getTime())
+          .slice(0, 3);
+
+        recentAssignedSchedules.forEach((schedule, index) => {
+          generatedNotifications.push({
+            id: `assigned-${schedule.id}`,
+            type: 'assigned_schedule',
+            title: '新しい予定が割り当てられました',
+            description: `${schedule.title} - ${schedule.engineerName || 'エンジニア'}に割り当て`,
+            scheduleId: schedule.id, // 文字列IDをそのまま使用
+            engineerId: schedule.engineerId,
+            engineerName: schedule.engineerName,
+            createdAt: schedule.createdAt || new Date(),
+            read: false,
+          });
+        });
+
+        // 緊急作業指示から通知を生成
+        const urgentWorkOrders = workOrders.filter(wo => wo.priority === 'urgent' && wo.status !== 'completed');
+        urgentWorkOrders.forEach((workOrder, index) => {
+          generatedNotifications.push({
+            id: `urgent-${workOrder.id}`,
+            type: 'unassigned_schedule',
+            title: '緊急作業指示があります',
+            description: `${workOrder.title} - 緊急対応が必要です`,
+            scheduleId: workOrder.id, // 文字列IDをそのまま使用
+            createdAt: workOrder.createdAt,
+            read: false,
+          });
+        });
+
+        // 作成日時でソート（新しい順）
+        generatedNotifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        
+        setNotifications(generatedNotifications);
+      } catch (error) {
+        console.error('通知生成エラー:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    generateNotifications();
+  }, []);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   const handleNotificationClick = (notification: Notification) => {
-    if (onNavigateToSchedule) {
-      onNavigateToSchedule(notification.scheduleId, notification.engineerId);
+    // 通知を既読にする
+    setNotifications(prev => 
+      prev.map(n => 
+        n.id === notification.id ? { ...n, read: true } : n
+      )
+    );
+
+    // 通知タイプに応じて適切な画面に遷移
+    if (notification.type === 'unassigned_schedule') {
+      // 未割り当ての予定はディスパッチ画面に遷移
+      if (onNavigateToDispatch) {
+        onNavigateToDispatch();
+      }
+    } else if (notification.type === 'assigned_schedule') {
+      // 割り当て済みの予定はスケジュール画面に遷移
+      if (onNavigateToSchedule) {
+        onNavigateToSchedule(notification.scheduleId, notification.engineerId);
+      }
     }
+    
     setIsOpen(false);
   };
 
@@ -114,12 +176,18 @@ export default function NotificationSystem({ onNavigateToSchedule }: Notificatio
         </SheetHeader>
         
         <div className="mt-6 space-y-4">
-          {mockNotifications.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+              <span className="ml-2 text-sm text-muted-foreground">読み込み中...</span>
+            </div>
+          ) : notifications.length === 0 ? (
             <div className="p-4 text-center text-muted-foreground">
-              通知はありません
+              <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p>通知はありません</p>
             </div>
           ) : (
-            mockNotifications.map((notification) => (
+            notifications.map((notification) => (
               <div 
                 key={notification.id} 
                 className="p-4 border rounded-lg cursor-pointer hover:bg-accent transition-colors"
