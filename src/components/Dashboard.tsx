@@ -7,9 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Users, Calendar, Clipboard, CheckCircle, AlertTriangle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { getEngineers, getWorkOrders, getSchedules } from '@/lib/firestore';
@@ -45,7 +42,7 @@ export default function Dashboard({ onNavigateToDispatch, currentUser }: Dashboa
         ]);
 
         // エンジニアデータを変換
-        const convertedEngineers: Engineer[] = firestoreEngineers.map((firestoreEngineer: any) => ({
+        const convertedEngineers: Engineer[] = firestoreEngineers.map((firestoreEngineer: Record<string, unknown>) => ({
           id: firestoreEngineer.id,
           name: firestoreEngineer.name,
           email: firestoreEngineer.email,

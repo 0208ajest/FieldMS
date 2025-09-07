@@ -44,7 +44,7 @@ interface EngineerManagementProps {
   currentUser: User;
 }
 
-export default function EngineerManagement({ currentUser }: EngineerManagementProps) {
+export default function EngineerManagement({ }: EngineerManagementProps) {
   const [engineers, setEngineers] = useState<Engineer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -169,18 +169,13 @@ export default function EngineerManagement({ currentUser }: EngineerManagementPr
       });
 
       // Firestoreにエンジニアを追加してドキュメントIDを取得
-      const newEngineerId = await addEngineer(engineerDataWithoutId as any);
+      const newEngineerId = await addEngineer(engineerDataWithoutId as Record<string, unknown>);
       console.log('✅ 新しいエンジニアが追加されました, ID:', newEngineerId);
       
-      // 取得したIDでFirestoreEngineerオブジェクトを作成
-      const firestoreEngineer: FirestoreEngineer = {
-        id: newEngineerId,
-        ...engineerDataWithoutId
-      };
       
       // 更新されたエンジニア一覧を取得してローカル状態を更新
       const updatedFirestoreEngineers = await getEngineers();
-      const updatedConvertedEngineers: Engineer[] = updatedFirestoreEngineers.map((firestoreEngineer, index) => ({
+      const updatedConvertedEngineers: Engineer[] = updatedFirestoreEngineers.map((firestoreEngineer) => ({
         id: firestoreEngineer.id, // Firestoreの実際のドキュメントIDを保持
         name: firestoreEngineer.name,
         email: firestoreEngineer.email,
@@ -392,8 +387,8 @@ export default function EngineerManagement({ currentUser }: EngineerManagementPr
 
   // ソートされたエンジニア一覧を取得
   const sortedEngineers = [...engineers].sort((a, b) => {
-    let aValue: any = a[sortField];
-    let bValue: any = b[sortField];
+    let aValue: string | number = a[sortField];
+    let bValue: string | number = b[sortField];
 
     if (sortField === 'name') {
       aValue = aValue.toLowerCase();

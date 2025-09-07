@@ -11,9 +11,6 @@ import {
   deleteDoc,
   query,
   where,
-  orderBy,
-  limit,
-  Timestamp
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { FirestoreUser, FirestoreEngineer, FirestoreSchedule, FirestoreWorkOrder } from '@/types';
@@ -291,12 +288,12 @@ export const getCompanies = async () => {
   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
 
-export const addCompany = async (companyData: any) => {
+export const addCompany = async (companyData: Record<string, unknown>) => {
   const docRef = await addDoc(companiesCollection, companyData);
   return docRef.id;
 };
 
-export const updateCompany = async (companyId: string, data: any) => {
+export const updateCompany = async (companyId: string, data: Record<string, unknown>) => {
   const docRef = doc(companiesCollection, companyId);
   await updateDoc(docRef, data);
 };

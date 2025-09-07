@@ -39,7 +39,7 @@ export default function NotificationSystem({ onNavigateToDispatch, onNavigateToS
 
         // 未割り当ての作業指示から通知を生成
         const unassignedWorkOrders = workOrders.filter(wo => wo.status === 'pending');
-        unassignedWorkOrders.forEach((workOrder, index) => {
+        unassignedWorkOrders.forEach((workOrder) => {
           generatedNotifications.push({
             id: `unassigned-${workOrder.id}`,
             type: 'unassigned_schedule',
@@ -57,7 +57,7 @@ export default function NotificationSystem({ onNavigateToDispatch, onNavigateToS
           .sort((a, b) => new Date(b.createdAt || new Date()).getTime() - new Date(a.createdAt || new Date()).getTime())
           .slice(0, 3);
 
-        recentAssignedSchedules.forEach((schedule, index) => {
+        recentAssignedSchedules.forEach((schedule) => {
           generatedNotifications.push({
             id: `assigned-${schedule.id}`,
             type: 'assigned_schedule',
@@ -73,7 +73,7 @@ export default function NotificationSystem({ onNavigateToDispatch, onNavigateToS
 
         // 緊急作業指示から通知を生成
         const urgentWorkOrders = workOrders.filter(wo => wo.priority === 'urgent' && wo.status !== 'completed');
-        urgentWorkOrders.forEach((workOrder, index) => {
+        urgentWorkOrders.forEach((workOrder) => {
           generatedNotifications.push({
             id: `urgent-${workOrder.id}`,
             type: 'unassigned_schedule',

@@ -130,20 +130,22 @@ function FirebaseAuthenticatedApp() {
   const [companyName, setCompanyName] = useState<string>('');
 
   // FirestoreUserを既存のUser型に変換
-  const currentUser: User | null = firestoreUser ? {
-    id: firestoreUser.id,
-    name: firestoreUser.name,
-    email: firestoreUser.email,
-    phone: firestoreUser.phone,
-    systemRole: firestoreUser.systemRole,
-    companyId: parseInt(firestoreUser.companyId) || 1,
-    departmentId: parseInt(firestoreUser.departmentId) || 1,
-    isActive: firestoreUser.isActive,
-    avatar: firestoreUser.avatar,
-    bio: firestoreUser.bio,
-    createdAt: firestoreUser.createdAt,
-    lastLoginAt: firestoreUser.lastLoginAt,
-  } : null;
+  const currentUser: User | null = useMemo(() => {
+    return firestoreUser ? {
+      id: firestoreUser.id,
+      name: firestoreUser.name,
+      email: firestoreUser.email,
+      phone: firestoreUser.phone,
+      systemRole: firestoreUser.systemRole,
+      companyId: parseInt(firestoreUser.companyId) || 1,
+      departmentId: parseInt(firestoreUser.departmentId) || 1,
+      isActive: firestoreUser.isActive,
+      avatar: firestoreUser.avatar,
+      bio: firestoreUser.bio,
+      createdAt: firestoreUser.createdAt,
+      lastLoginAt: firestoreUser.lastLoginAt,
+    } : null;
+  }, [firestoreUser]);
 
   // 状態変更時にローカルストレージに保存
   useEffect(() => {
@@ -168,8 +170,8 @@ function FirebaseAuthenticatedApp() {
       if (currentUser?.companyId) {
         try {
           const company = await getCompany(currentUser.companyId.toString());
-          if (company && (company as any).name) {
-            setCompanyName((company as any).name);
+          if (company && company.name) {
+            setCompanyName(company.name);
           }
         } catch (error) {
           console.error('企業名取得エラー:', error);

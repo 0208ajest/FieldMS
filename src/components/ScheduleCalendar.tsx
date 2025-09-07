@@ -10,14 +10,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ChevronLeft, ChevronRight, Plus, X, User, AlertTriangle } from 'lucide-react';
-import { User as UserType, Schedule, WorkOrder, FirestoreSchedule } from '@/types';
-import { schedules, engineers, workOrders } from '@/components/data/engineerData';
+import { User as UserType, Schedule } from '@/types';
+import { engineers } from '@/components/data/engineerData';
 import { 
   addSchedule, 
   getSchedules, 
   updateSchedule, 
-  deleteSchedule,
-  getSchedulesByEngineer,
   getEngineers
 } from '@/lib/firestore';
 
@@ -26,12 +24,11 @@ interface ScheduleCalendarProps {
   engineerFilter?: string | null;
 }
 
-export default function ScheduleCalendar({ currentUser: _currentUser, engineerFilter }: ScheduleCalendarProps) {
+export default function ScheduleCalendar({ engineerFilter }: ScheduleCalendarProps) {
   const [view, setView] = useState<'month' | 'week' | 'day' | 'list'>('week');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isNewScheduleOpen, setIsNewScheduleOpen] = useState(false);
   const [schedulesList, setSchedulesList] = useState<Schedule[]>([]);
-  const [workOrdersList, setWorkOrdersList] = useState(workOrders);
   const [conflictAlert, setConflictAlert] = useState<string | null>(null);
   const [recommendedEngineers, setRecommendedEngineers] = useState<typeof engineers>([]);
   const [loading, setLoading] = useState(true);
@@ -77,7 +74,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
         const firestoreEngineers = await getEngineers();
         console.log('👨‍💻 取得したFirestoreエンジニア:', firestoreEngineers);
         
-        const convertedEngineers = firestoreEngineers.map((firestoreEngineer: any) => ({
+        const convertedEngineers = firestoreEngineers.map((firestoreEngineer: Record<string, unknown>) => ({
           id: firestoreEngineer.id, // FirebaseのIDをそのまま使用
           name: firestoreEngineer.name,
           email: firestoreEngineer.email,
@@ -776,7 +773,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                       推奨エンジニア（{newSchedule.startDate} {newSchedule.startTime || '09:00'} - {newSchedule.endTime || '18:00'}）
                     </h4>
                     <div className="space-y-2">
-                      {recommendedEngineers.map((engineer: any) => (
+                      {recommendedEngineers.map((engineer: Engineer) => (
                         <div key={engineer.id} className="flex items-center justify-between p-2 bg-white rounded border">
                           <div>
                             <span className="font-medium text-sm">{engineer.name}</span>
@@ -840,7 +837,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                 <div 
                   key={index} 
                   className="min-h-32 p-2 border-r border-b last-in-row:border-r-0 last-row:border-b-0 cursor-pointer hover:bg-muted/50"
-                  onClick={(e) => {
+                  onClick={() => {
                     // 予定がある場合は詳細表示、ない場合は新規登録
                     if (day.schedules.length > 0) {
                       // 予定がある場合は最初の予定の詳細を表示
@@ -928,7 +925,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                     <div 
                       key={dateIndex} 
                       className="p-2 border-r border-b last:border-r-0 min-h-20 cursor-pointer hover:bg-muted/30"
-                      onClick={(e) => {
+                      onClick={() => {
                         // その日のスケジュールを取得
                         const daySchedules = schedulesList.filter(schedule => {
                           const scheduleDate = new Date(schedule.startDate);
@@ -1012,7 +1009,7 @@ export default function ScheduleCalendar({ currentUser: _currentUser, engineerFi
                     <div 
                       key={hour} 
                       className="p-1 border-r border-b last:border-r-0 min-h-12 cursor-pointer hover:bg-muted/30"
-                      onClick={(e) => {
+                      onClick={() => {
                         const date = new Date(currentDate);
                         date.setHours(hour, 0, 0, 0);
                         

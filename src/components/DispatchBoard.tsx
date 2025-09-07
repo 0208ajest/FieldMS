@@ -76,7 +76,7 @@ export default function DispatchBoard({ }: DispatchBoardProps) {
         const firestoreEngineers = await getEngineers();
         console.log('👨‍💻 取得したFirestoreエンジニア:', firestoreEngineers);
         
-        const convertedEngineers = firestoreEngineers.map((firestoreEngineer: any) => ({
+        const convertedEngineers = firestoreEngineers.map((firestoreEngineer: Record<string, unknown>) => ({
           id: firestoreEngineer.id,
           name: firestoreEngineer.name,
           email: firestoreEngineer.email,

@@ -13,15 +13,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Search, Plus, Eye, Edit, Trash2, Loader2, AlertTriangle } from 'lucide-react';
-import { User, FirestoreUser } from '@/types';
-import { users, companies, departments } from '@/components/data/userData';
+import { User } from '@/types';
+import { companies, departments } from '@/components/data/userData';
 import { getUsers, addUser, updateUser, deleteUser, getCompanies, addCompany, updateCompany, deleteCompany } from '@/lib/firestore';
 
 interface UserManagementProps {
   currentUser: User;
 }
 
-export default function UserManagement({ currentUser }: UserManagementProps) {
+export default function UserManagement({ }: UserManagementProps) {
   const [activeTab, setActiveTab] = useState<'users' | 'companies'>('users');
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -40,9 +40,9 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
   const [isAddCompanyOpen, setIsAddCompanyOpen] = useState(false);
   const [isEditCompanyOpen, setIsEditCompanyOpen] = useState(false);
   const [isDeleteCompanyConfirmOpen, setIsDeleteCompanyConfirmOpen] = useState(false);
-  const [companyToEdit, setCompanyToEdit] = useState<any>(null);
-  const [companyToDelete, setCompanyToDelete] = useState<any>(null);
-  const [companiesList, setCompaniesList] = useState<any[]>([]);
+  const [companyToEdit, setCompanyToEdit] = useState<Record<string, unknown> | null>(null);
+  const [companyToDelete, setCompanyToDelete] = useState<Record<string, unknown> | null>(null);
+  const [companiesList, setCompaniesList] = useState<Record<string, unknown>[]>([]);
   const [companyLoading, setCompanyLoading] = useState(false);
 
   const [newUser, setNewUser] = useState({
@@ -90,7 +90,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
         const firestoreUsers = await getUsers();
         
         // FirestoreUserをUser型に変換
-        const convertedUsers: User[] = firestoreUsers.map((firestoreUser: any) => ({
+        const convertedUsers: User[] = firestoreUsers.map((firestoreUser: Record<string, unknown>) => ({
           id: firestoreUser.id,
           name: firestoreUser.name || '',
           email: firestoreUser.email || '',
@@ -123,7 +123,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
       try {
         setCompanyLoading(true);
         const companies = await getCompanies();
-        setCompaniesList(companies as any[]);
+        setCompaniesList(companies as Record<string, unknown>[]);
       } catch (err) {
         console.error('会社一覧取得エラー:', err);
       } finally {
@@ -166,11 +166,11 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
         lastLoginAt: null,
       };
 
-      const newUserId = await addUser(userDataWithoutId as any);
+      await addUser(userDataWithoutId as Record<string, unknown>);
       
       // 更新されたユーザー一覧を取得
       const updatedFirestoreUsers = await getUsers();
-      const updatedConvertedUsers: User[] = updatedFirestoreUsers.map((firestoreUser: any) => ({
+      const updatedConvertedUsers: User[] = updatedFirestoreUsers.map((firestoreUser: Record<string, unknown>) => ({
         id: firestoreUser.id,
         name: firestoreUser.name || '',
         email: firestoreUser.email || '',
@@ -374,7 +374,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
               if (open && companiesList.length === 0) {
                 try {
                   const companies = await getCompanies();
-                  setCompaniesList(companies as any[]);
+                  setCompaniesList(companies as Record<string, unknown>[]);
                 } catch (err) {
                   console.error('会社データ取得エラー:', err);
                 }
@@ -824,7 +824,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
                             if (companiesList.length === 0) {
                               try {
                                 const companies = await getCompanies();
-                                setCompaniesList(companies as any[]);
+                                setCompaniesList(companies as Record<string, unknown>[]);
                               } catch (err) {
                                 console.error('会社データ取得エラー:', err);
                               }
@@ -964,7 +964,7 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-role">ロール</Label>
-                <Select value={editUser.systemRole} onValueChange={(value: any) => setEditUser({ ...editUser, systemRole: value })}>
+                <Select value={editUser.systemRole} onValueChange={(value: string) => setEditUser({ ...editUser, systemRole: value as 'system_admin' | 'admin' | 'dispatcher' | 'engineer_manager' | 'engineer' })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>

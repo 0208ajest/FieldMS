@@ -27,7 +27,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       if (!success) {
         setError('メールアドレスまたはパスワードが正しくありません');
       }
-    } catch (_err) {
+    } catch {
     setError('ログインに失敗しました。再度お試しください。');
   } finally {
       setIsLoading(false);
